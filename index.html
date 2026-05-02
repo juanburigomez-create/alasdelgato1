@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Gato POS">
+    <meta name="theme-color" content="#0d0d0d">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>LAS ALAS DEL GATO - POS Domicilios</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial; }
+        body { background: #0d0d0d; color: white; padding: 20px; }
+
+        /* ── LAYOUT ── */
+        .dashboard { display: grid; grid-template-columns: 2fr 1.1fr; gap: 20px; }
+        .panel { background: #111; border-radius: 20px; padding: 20px; box-shadow: 0 0 20px rgba(0,0,0,.4); }
+        .header { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .logo { display: flex; align-items: center; gap: 20px; }
+        .logo img { width: 110px; border-radius: 50%; border: 3px solid #ff4500; }
+        .orange { color: #ff4500; }
+        .box { background: #1a1a1a; padding: 14px 18px; border-radius: 14px; margin-bottom: 12px; }
+        .section { background: #0f0f0f; padding: 20px; border-radius: 18px; margin-top: 20px; }
+
+        /* ── STOCK PIEZAS ── */
+        .stock-bar-wrap { margin-top: 6px; background: #222; border-radius: 20px; height: 10px; overflow: hidden; }
+        .stock-bar { height: 100%; border-radius: 20px; background: linear-gradient(to right, #ff4500, #ff8c00); transition: width 0.4s; }
+        .stock-bar.low { background: linear-gradient(to right, #b91c1c, #ff4500); }
+        .stock-numero { font-size: 28px; font-weight: 900; color: #ff4500; }
+        .stock-label { font-size: 11px; color: #888; letter-spacing: 1px; text-transform: uppercase; }
+
+        /* ── PEDIDOS ── */
+        .pedidos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .pedido-card {
+            background: #1a1a1a; border-radius: 12px; padding: 12px;
+            border: 2px solid transparent; cursor: pointer; transition: all 0.2s;
+            display: flex; flex-direction: column; gap: 5px;
+        }
+        .pedido-card:hover { border-color: #ff4500; transform: translateY(-1px); }
+        .pedido-card.activo { background: #2a0a00; border-color: #ff4500; box-shadow: 0 0 10px rgba(255,69,0,.4); }
+        .pedido-card .ped-num { font-size: 11px; font-weight: bold; color: #ff4500; }
+        .pedido-card .ped-cliente { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pedido-card .ped-estado { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: bold; align-self: flex-start; }
+        .estado-nuevo { background: #1e3a5f; color: #7eb8f7; }
+        .estado-preparando { background: #4a2a00; color: #ffa040; }
+        .estado-listo { background: #052e16; color: #4ade80; }
+        .estado-entregado { background: #1a1a1a; color: #888; }
+        .ped-total { font-size: 14px; font-weight: bold; color: #ff4500; }
+        .ped-piezas { font-size: 10px; color: #aaa; }
+
+        /* ── BOTONES ESTADO ── */
+        .estados-btn { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .btn-estado { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; border: 2px solid; cursor: pointer; background: transparent; transition: all 0.2s; }
+        .btn-estado:hover { opacity: 0.8; }
+        .btn-estado.nuevo { border-color: #2563eb; color: #7eb8f7; }
+        .btn-estado.preparando { border-color: #d97706; color: #ffa040; }
+        .btn-estado.listo { border-color: #15803d; color: #4ade80; }
+        .btn-estado.entregado { border-color: #555; color: #888; }
+        .btn-estado.activo-e { filter: brightness(1.4); background: rgba(255,255,255,0.08); }
+
+        /* ── PRODUCTOS ── */
+        .combos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
+        .combo-card {
+            background: #1a1a1a; border-radius: 16px; padding: 18px; text-align: center;
+            border: 2px solid #222; cursor: pointer; transition: all 0.2s; position: relative;
+        }
+        .combo-card:hover { border-color: #ff4500; transform: translateY(-2px); }
+        .combo-card:active { transform: scale(0.97); }
+        .combo-card.sin-stock { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+        .combo-emoji { font-size: 36px; margin-bottom: 8px; }
+        .combo-nombre { font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+        .combo-piezas { font-size: 11px; color: #ff4500; margin-bottom: 8px; font-weight: bold; }
+        .combo-precio { font-size: 20px; font-weight: 900; color: #ff4500; }
+        .combo-badge { position: absolute; top: 8px; right: 8px; background: #ff4500; color: white; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px; }
+
+        /* ── TICKET / PEDIDO ACTIVO ── */
+        .ticketPanel { background: white; color: #111; border-radius: 20px; overflow: hidden; position: sticky; top: 20px; }
+        .ticketHeader { background: #111; color: white; padding: 16px 20px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .ticket { padding: 24px; }
+        .ticket img { width: 90px; border-radius: 50%; display: block; margin: 0 auto 10px; }
+        .pedido-info-box { background: #fff3e0; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+        .pedido-info-box .pi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
+        .pedido-info-box .pi-valor { font-size: 14px; font-weight: bold; color: #2c1a0e; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #b11414; color: white; padding: 10px; font-size: 12px; }
+        td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; font-size: 13px; }
+        .total { margin-top: 16px; font-size: 38px; font-weight: bold; color: #9d1111; text-align: center; }
+        .smallBtn { background: #d97706; padding: 5px 9px; font-size: 11px; margin: 1px; }
+
+        /* ── MODALS ── */
+        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,.8); }
+        .modal-content { background:#111; margin:3% auto; padding:30px; border-radius:20px; width:90%; max-width:500px; color:white; border:1px solid #333; }
+        .close { color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer; }
+        .close:hover { color:white; }
+        .modal-pago { display:none; position:fixed; z-index:1100; inset:0; background:rgba(0,0,0,.8); justify-content:center; align-items:center; }
+        .modal-pago.activo { display:flex; }
+        .modal-pago-inner { background:#111; border-radius:20px; padding:28px; width:100%; max-width:420px; border:1px solid #333; }
+        .modal-pago-inner h2 { color:#ff4500; font-size:18px; margin-bottom:6px; }
+        .modal-pago-inner .subtitulo { color:#aaa; font-size:13px; margin-bottom:20px; }
+        .tabs-pago { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:20px; }
+        .tab-pago { padding:10px; border-radius:10px; border:2px solid #333; background:transparent; color:#aaa; font-size:13px; cursor:pointer; }
+        .tab-pago.activo { border-color:#ff4500; color:#fff; background:#1a0a00; }
+        .panel-pago { display:none; } .panel-pago.activo { display:block; }
+        .panel-pago label { display:block; color:#aaa; font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+        .panel-pago input { width:100%; padding:12px; background:#1a1a1a; border:1.5px solid #333; border-radius:10px; color:#fff; font-size:18px; font-weight:bold; margin-bottom:14px; box-sizing:border-box; }
+        .panel-pago input:focus { outline:none; border-color:#ff4500; }
+        .resumen-pago { background:#1a1a1a; border-radius:12px; padding:14px; margin-bottom:16px; }
+        .resumen-pago .linea { display:flex; justify-content:space-between; font-size:13px; color:#aaa; margin-bottom:6px; }
+        .resumen-pago .linea.naranja { color:#ff4500; font-size:15px; font-weight:bold; margin-bottom:0; }
+        .pagos-realizados { margin-bottom:16px; }
+        .pagos-realizados h4 { color:#aaa; font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+        .pago-item { display:flex; justify-content:space-between; align-items:center; background:#1a1a1a; border-radius:8px; padding:10px 14px; margin-bottom:6px; }
+        .pago-item span { color:#fff; font-size:14px; }
+        .pago-item .monto { color:#22c55e; font-weight:bold; }
+        .pago-item button { background:#b91c1c; border:none; color:#fff; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:12px; }
+        .btn-cobrar { width:100%; padding:14px; border-radius:12px; border:none; background:#ff4500; color:#fff; font-size:16px; font-weight:bold; cursor:pointer; margin-bottom:8px; }
+        .btn-cobrar:hover { background:#cc3700; } .btn-cobrar:disabled { background:#555; cursor:not-allowed; }
+        .btn-cancelar-pago { width:100%; padding:10px; border-radius:10px; border:1px solid #333; background:transparent; color:#aaa; font-size:14px; cursor:pointer; }
+        .cuotas-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+        .cuota-btn { padding:12px 6px; border-radius:10px; border:2px solid #333; background:transparent; color:#aaa; font-size:13px; cursor:pointer; }
+        .cuota-btn:hover, .cuota-btn.sel { border-color:#ff4500; color:#fff; background:#1a0a00; }
+        .alerta-pago { display:none; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:12px; }
+        .alerta-pago.error { background:#3b0000; color:#f87171; border:1px solid #7f1d1d; display:block; }
+        .alerta-pago.ok { background:#052e16; color:#4ade80; border:1px solid #14532d; display:block; }
+
+        /* ── INPUT NUEVO PEDIDO ── */
+        .nuevo-pedido-form { background: #1a1a1a; border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+        .nuevo-pedido-form input, .nuevo-pedido-form select {
+            width: 100%; padding: 10px 14px; background: #222; border: 1.5px solid #333;
+            border-radius: 10px; color: white; font-size: 14px; margin-bottom: 10px; outline: none;
+        }
+        .nuevo-pedido-form input:focus, .nuevo-pedido-form select:focus { border-color: #ff4500; }
+
+        /* ── MISC ── */
+        button { border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; margin: 4px; color: white; font-weight: bold; transition: opacity 0.2s; }
+        button:hover { opacity: 0.85; }
+        .green { background: #15803d; } .red { background: #b91c1c; }
+        .blue { background: #2563eb; } .orangeBtn { background: #ff4500; } .purple { background: #7c3aed; }
+        input, select { padding: 10px; margin: 5px; border: none; border-radius: 8px; background: #222; color: white; }
+        .gasto-item { background:#1a1a1a; padding:12px; margin:8px 0; border-radius:8px; display:grid; grid-template-columns:2fr 1fr 1fr 80px; gap:10px; align-items:center; }
+        .reporte-tabla { background:#1a1a1a; padding:15px; border-radius:8px; margin-top:15px; overflow-x:auto; }
+        .reporte-tabla table { margin-top:10px; } .reporte-tabla th { background:#2563eb; }
+        .reporte-tabla td { border-bottom:1px solid #333; color:white; }
+        .cierre-info { background:#1a1a1a; padding:15px; border-radius:8px; margin-top:15px; border-left:4px solid #ff4500; }
+        .cierre-info p { margin:8px 0; font-size:16px; } .cierre-info strong { color:#ff4500; }
+        #inventarioPanel { display:none; margin-top:15px; padding:15px; background:#1a1a1a; border-radius:15px; }
+        #gastosPanel { display:none; margin-top:15px; padding:15px; background:#1a1a1a; border-radius:15px; }
+
+        #licenciaBox { position:fixed; top:12px; right:12px; z-index:9000; background:#111; border:2px solid #ff4500; border-radius:12px; padding:8px 18px; font-size:14px; font-weight:bold; color:white; box-shadow:0 0 12px rgba(255,69,0,0.4); }
+
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #ff4500; border-radius: 3px; }
+
+        /* ══ MOBILE RESPONSIVE ══════════════════════════════════════ */
+        @media (max-width: 900px) {
+            body { padding: 8px; padding-bottom: 70px; }
+            
+            /* Layout: stack vertically, tabs control visibility */
+            .dashboard { display: block !important; }
+            .panel, .ticketPanel { display: none !important; }
+            .panel.tab-active, .ticketPanel.tab-active { display: block !important; }
+            
+            /* Header: single column */
+            .header { grid-template-columns: 1fr !important; gap: 10px; }
+            .logo img { width: 70px; }
+            .logo h1 { font-size: 18px; }
+            
+            /* Pedidos grid: 2 columns on mobile */
+            .pedidos-grid { grid-template-columns: repeat(2, 1fr) !important; }
+            
+            /* Combos: 2 columns */
+            .combos-grid { grid-template-columns: 1fr 1fr !important; }
+            
+            /* Bebidas: 3 columns */
+            #bebidasGrid { grid-template-columns: repeat(3, 1fr) !important; }
+            
+            /* Admin grids: 2 columns */
+            .gasto-item { grid-template-columns: 1fr 1fr !important; }
+            
+            /* Ticket panel full width */
+            .ticketPanel { border-radius: 0; }
+            
+            /* Buttons: larger tap targets */
+            button { min-height: 40px; }
+            .btn-estado { padding: 8px 12px; font-size: 13px; }
+            
+            /* Modal: full screen on mobile */
+            .modal-content { margin: 5% auto; width: 95%; padding: 20px; }
+            .modal-pago-inner { width: 95%; padding: 20px; }
+            .modal-salsas-inner { padding: 18px; }
+            
+            /* Tab navigation bar at bottom */
+            #tabNav {
+                position: fixed; bottom: 0; left: 0; right: 0; z-index: 8500;
+                background: #111; border-top: 1px solid #333;
+                display: flex; justify-content: space-around; padding: 4px 0 6px;
+            }
+            #tabNav button {
+                flex: 1; background: transparent; border: none; color: #888;
+                font-size: 10px; padding: 4px 2px; display: flex;
+                flex-direction: column; align-items: center; gap: 2px;
+                margin: 0; min-height: unset; font-weight: bold;
+                cursor: pointer; border-radius: 0;
+            }
+            #tabNav button.tab-nav-active { color: #ff4500; }
+            #tabNav button span.tab-icon { font-size: 20px; }
+            
+            /* Section padding */
+            .section { padding: 12px; }
+            .panel { padding: 12px; }
+            
+            /* Login screen */
+            #loginScreen > div { width: 95% !important; padding: 24px !important; }
+            
+            /* Close session button */
+            #btnCerrarSesion { bottom: 70px !important; right: 10px !important; }
+            
+            /* Admin 4-col grids to 2-col */
+            div[style*="grid-template-columns: 1fr 1fr 1fr 1fr"] {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+            }
+            
+            /* Stock grid */
+            div[style*="grid-template-columns:1fr 1fr"] { 
+                grid-template-columns: 1fr !important; 
+            }
+
+            /* Ticket header wrap */
+            .ticketHeader { flex-direction: column; gap: 6px; }
+
+            /* Table font */
+            td, th { font-size: 11px; padding: 7px; }
+            .total { font-size: 28px; }
+
+            /* Report modal */
+            #reportesModal .modal-content { max-width: 98%; }
+
+            /* Licencia box */
+            #licenciaBox { top: 8px; right: 8px; font-size: 11px; padding: 5px 10px; }
+        }
+
+        /* Small phones */
+        @media (max-width: 400px) {
+            .pedidos-grid { grid-template-columns: 1fr 1fr !important; }
+            .combos-grid { grid-template-columns: 1fr 1fr !important; }
+            .combo-emoji { font-size: 28px; }
+            .combo-nombre { font-size: 11px; }
+        }
+
+        @media print { .modal-salsas, .modal-pago, .modal { display:none!important; } }
+        /* ── MODAL SALSAS ── */
+        .modal-salsas{display:none;position:fixed;z-index:1200;inset:0;background:rgba(0,0,0,.87);justify-content:center;align-items:center;padding:20px;}
+        .modal-salsas.activo{display:flex;}
+        .modal-salsas-inner{background:#111;border-radius:20px;padding:26px;width:100%;max-width:500px;border:1px solid #333;box-shadow:0 0 40px rgba(255,69,0,.3);max-height:90vh;overflow-y:auto;}
+        .modal-salsas-inner h2{color:#ff4500;font-size:18px;margin-bottom:3px;}
+        .ms-sub{color:#aaa;font-size:13px;margin-bottom:16px;}
+        .ms-combo-preview{background:#1a1a1a;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+        .ms-combo-preview .ms-nombre{font-size:15px;font-weight:bold;}
+        .ms-combo-preview .ms-precio{font-size:22px;font-weight:900;color:#ff4500;}
+        .salsas-hint{font-size:11px;color:#aaa;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+        .salsas-hint span{color:#ff4500;font-weight:bold;}
+        .salsas-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;}
+        .salsa-btn{padding:12px 10px;border-radius:10px;border:2px solid #333;background:transparent;color:#ccc;font-size:13px;font-weight:bold;cursor:pointer;transition:all .18s;text-align:center;position:relative;}
+        .salsa-btn:hover{border-color:#ff4500;color:#fff;background:#1a0a00;}
+        .salsa-btn.sel{border-color:#ff4500;color:#fff;background:#2a0800;box-shadow:0 0 8px rgba(255,69,0,.35);}
+        .salsa-btn .salsa-num{position:absolute;top:5px;right:7px;background:#ff4500;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:900;}
+        .salsa-requerida-msg{color:#f87171;font-size:12px;margin:4px 0 12px;display:none;}
+        .btn-confirmar-combo{width:100%;padding:14px;border-radius:12px;border:none;background:#ff4500;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;margin-bottom:8px;}
+        .btn-confirmar-combo:hover{background:#cc3700;}
+        .btn-cancelar-combo{width:100%;padding:10px;border-radius:10px;border:1px solid #333;background:transparent;color:#aaa;font-size:14px;cursor:pointer;}
+
+    </style>
+</head>
+
+<div id="licenciaBox">🔐 Licencia: <span id="diasLicencia">-</span> días</div>
+
+<body>
+<!-- ══ LOGIN ══════════════════════════════════════════════ -->
+<div id="loginScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0d0d0d;display:flex;justify-content:center;align-items:center;z-index:9999;">
+    <div style="background:#111;padding:40px;border-radius:20px;width:420px;text-align:center;box-shadow:0 0 30px rgba(255,69,0,0.3);border:2px solid #ff4500;">
+        <div style="font-size:48px;margin-bottom:8px;">MULTIMANT SAS</div>
+        <h1 style="color:#ff4500;margin-bottom:6px;"></h1>
+        <h3 style="margin-bottom:30px;color:#aaa;">Sistema POS</h3>
+        <input id="usuarioLogin" type="text" placeholder="Usuario" style="width:100%;padding:15px;margin-bottom:15px;font-size:18px;border-radius:8px;background:#1a1a1a;border:1.5px solid #333;color:white;">
+        <input id="claveLogin" type="password" placeholder="Contraseña" style="width:100%;padding:15px;margin-bottom:20px;font-size:18px;border-radius:8px;background:#1a1a1a;border:1.5px solid #333;color:white;">
+        <button onclick="entrarSistema()" style="background:#ff4500;width:100%;padding:15px;font-size:18px;border:none;border-radius:10px;color:white;font-weight:bold;">INGRESAR </button>
+        <p id="errorLogin" style="color:red;margin-top:15px;display:none;">Usuario o contraseña incorrectos</p>
+        <p style="margin-top:20px;font-size:11px;color:#555;">Powered by MULTIMANT SAS</p>
+    </div>
+</div>
+
+<!-- ══ SISTEMA PRINCIPAL ═══════════════════════════════════ -->
+<div class="dashboard" id="sistema" style="display:none;">
+
+    <!-- ── PANEL IZQUIERDO ── -->
+    <div class="panel">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="logo">
+                <img id="logoImg" src="" alt="Las Alas del Gato">
+                <div>
+                    <h1>LAS ALAS <span class="orange">DEL GATO</span></h1>
+                    <h3>Sistema POS </h3>
+                </div>
+            </div>
+            <div>
+                <div class="box" id="relojBox"><span style="font-size:12px;color:#888;">Fecha y hora</span><div id="fecha" style="font-size:13px;"></div></div>
+                <div class="box">
+                    <span class="stock-label">Ventas del día</span>
+                    <h2 style="color:#ff4500;">$<span id="ventasDia">0</span></h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- PEDIDOS ACTIVOS — cuadros pequeños -->
+        <div id="secPedidos" class="section" style="padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <h2 style="font-size:16px;">📦 PEDIDOS ACTIVOS</h2>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                    <button onclick="filtrarPedidos('todos')" id="filtro-todos" class="blue" style="font-size:10px;padding:4px 10px;">Todos</button>
+                    <button onclick="filtrarPedidos('nuevo')" id="filtro-nuevo" style="background:#1e3a5f;font-size:10px;padding:4px 10px;">Nuevos</button>
+                    <button onclick="filtrarPedidos('preparando')" id="filtro-preparando" style="background:#4a2a00;font-size:10px;padding:4px 10px;">Prep.</button>
+                    <button onclick="filtrarPedidos('listo')" id="filtro-listo" style="background:#052e16;font-size:10px;padding:4px 10px;">Listos</button>
+                </div>
+            </div>
+            <div class="pedidos-grid" id="pedidosGrid">
+                <div style="grid-column:1/-1;text-align:center;color:#444;padding:20px;font-size:13px;">No hay pedidos aún</div>
+            </div>
+        </div>
+
+        <!-- NUEVO PEDIDO -->
+        <div id="secNuevo" class="section">
+            <h2 style="margin-bottom:14px;">📋 NUEVO PEDIDO</h2>
+            <div class="nuevo-pedido-form">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div>
+                        <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;">NOMBRE CLIENTE</label>
+                        <input id="inputCliente" type="text" placeholder="Ej: Juan García">
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;">TELÉFONO</label>
+                        <input id="inputTelefono" type="tel" placeholder="Ej: 300-123-4567">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;">DIRECCIÓN DE ENTREGA</label>
+                    <input id="inputDireccion" type="text" placeholder="Ej: Cra 15 #45-20, Barrio Las Flores">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div>
+                        <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;">MÉTODO DE PAGO</label>
+                        <select id="inputMetodoPago">
+                            <option value="efectivo">💵 Efectivo</option>
+                            <option value="transferencia">📲 Transferencia</option>
+                            <option value="nequi">🟣 Nequi</option>
+                            <option value="daviplata">🔴 Daviplata</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;">NOTAS</label>
+                        <input id="inputNotas" type="text" placeholder="Ej: sin picante">
+                    </div>
+                </div>
+                <button class="orangeBtn" onclick="crearNuevoPedido()" style="width:100%;padding:12px;font-size:15px;margin-top:4px;">
+                     CREAR PEDIDO
+                </button>
+            </div>
+
+            <!-- COMBOS -->
+            <h3 style="margin-bottom:10px;color:#aaa;font-size:13px;letter-spacing:1px;"> COMBOS DE ALAS:</h3>
+            <div class="combos-grid" id="combosGrid"></div>
+
+            <!-- PAPAS CARD -->
+            <div id="papasCardWrap" style="margin-top:10px;"></div>
+
+            <!-- BEBIDAS -->
+            <h3 style="margin:16px 0 10px;color:#aaa;font-size:13px;letter-spacing:1px;"> BEBIDAS:</h3>
+            <div id="bebidasGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+        </div>
+
+        <!-- INVENTARIO / ADMIN -->
+        <div id="secAdmin" class="section">
+            <h2>⚙️ ADMINISTRACIÓN</h2>
+            <button class="blue" onclick="loginInventario()">Gestión Productos</button>
+            <button class="red" onclick="salirInventario()">Cerrar</button>
+            <div id="inventarioPanel">
+                <!-- STOCK DE PIEZAS — dentro de inventario protegido -->
+                <div style="background:#0f0f0f;border-radius:14px;padding:16px;margin:12px 0;border:1px solid #333;">
+                    <h3 style="margin-bottom:12px;color:#ff4500;">🍗 Stock de Piezas</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center;">
+                        <div>
+                            <div class="stock-label">Piezas disponibles</div>
+                            <div class="stock-numero" id="stockNumero" style="font-size:36px;">0</div>
+                            <div id="stockBarWrap" class="stock-bar-wrap" style="margin-top:8px;">
+                                <div class="stock-bar" id="stockBar" style="width:0%;"></div>
+                            </div>
+                            <div style="font-size:11px;color:#555;margin-top:4px;">Máx del día: <span id="stockMax">0</span></div>
+                        </div>
+                        <div style="text-align:center;">
+                            <button class="green" onclick="abrirModalAgregarStock()" style="padding:10px 16px;font-size:13px;width:100%;margin-bottom:8px;">+ Agregar Stock</button>
+                            <div style="font-size:12px;color:#888;">Consumidas hoy:</div>
+                            <div style="font-size:20px;font-weight:bold;color:#ffa040;"><span id="piezasConsumidas">0</span> pzas</div>
+                        </div>
+                    </div>
+                </div>
+                <hr style="margin:12px 0;border:1px solid #222;">
+                <h3 style="margin:0 0 8px;">Gestión de Combos</h3>
+                <p style="font-size:12px;color:#888;margin-bottom:10px;">El stock se descuenta en <strong style="color:#ff4500;">PIEZAS</strong> de alas por combo vendido.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:end;">
+                    <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px;">NOMBRE</label><input id="nuevoNombre" placeholder="Nombre combo"></div>
+                    <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px;">PRECIO</label><input id="nuevoPrecio" type="number" placeholder="Precio"></div>
+                    <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px;">PIEZAS QUE USA</label><input id="nuevoStock" type="number" placeholder="Piezas"></div>
+                    <button class="green" onclick="crearProducto()">Guardar</button>
+                </div>
+                <div id="listaProductosAdmin" style="margin-top:12px;"></div>
+                <hr style="margin:16px 0;border:1px solid #333;">
+                <!-- GESTIÓN BEBIDAS -->
+                <h3 style="margin:0 0 8px;"> Gestión de Bebidas</h3>
+                <p style="font-size:12px;color:#888;margin-bottom:10px;">Stock por unidades. Se descuenta 1 unidad por cada bebida vendida.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:end;margin-bottom:10px;">
+                    <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px;">NOMBRE</label><input id="nuevaBebidaNombre" placeholder="Ej: Coca-Cola"></div>
+                    <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px;">PRECIO</label><input id="nuevaBebidaPrecio" type="number" placeholder="Precio"></div>
+                    <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px;">STOCK (unidades)</label><input id="nuevaBebidaStock" type="number" placeholder="Cant."></div>
+                    <button class="green" onclick="crearBebida()">Guardar</button>
+                </div>
+                <div id="listaBebidasAdmin" style="margin-top:6px;"></div>
+                <hr style="margin:16px 0;border:1px solid #333;">
+                <h3 style="margin:0 0 8px;">🍟 Precio Porción de Papas</h3>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                    <input id="inputPrecioPapas" type="number" placeholder="Ej: 4000" style="width:140px;">
+                    <button class="green" onclick="guardarPrecioPapas()">Guardar</button>
+                    <span id="precioPapasLabel" style="color:#fbbf24;font-weight:bold;font-size:13px;"></span>
+                </div>
+                <hr style="margin:16px 0;border:1px solid #333;">
+                <h3 style="margin-bottom:8px;">Copia de Seguridad</h3>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button onclick="exportarBackup()" style="background:#1e3a5f;border:1px solid #2f5a8f;color:#7eb8f7;padding:6px 12px;border-radius:7px;font-size:12px;">📥 Exportar</button>
+                    <label style="background:#1e3a5f;border:1px solid #2f5a8f;color:#7eb8f7;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;">📤 Restaurar<input type="file" accept=".json" onchange="importarBackup(this.files[0])" style="display:none;"></label>
+                </div>
+                <hr style="margin:16px 0;border:1px solid #333;">
+                <button class="red" onclick="reiniciarTodo()" style="width:100%;padding:12px;font-weight:bold;background:#8b0000;">⚠️ REINICIAR TODO EL PROGRAMA</button>
+            </div>
+        </div>
+
+        <!-- GASTOS -->
+        <div id="secGastos" class="section">
+            <h2>💸 GASTOS</h2>
+            <button class="purple" onclick="loginGastos()">Ingresar</button>
+            <button class="red" onclick="salirGastos()">Salir</button>
+            <div id="gastosPanel">
+                <h3 style="margin:10px 0 6px;">Registrar Gasto</h3>
+                <select id="tipoGasto"><option value="proveedor">Proveedor (alas/insumos)</option><option value="empleado">Empleado</option><option value="domicilio">Domiciliario</option><option value="otro">Otro</option></select>
+                <input id="nombreGasto" placeholder="Descripción">
+                <input id="montoGasto" type="number" placeholder="Monto">
+                <input id="fechaGasto" type="date"><br>
+                <button class="green" onclick="agregarGasto()">Guardar Gasto</button>
+                <div id="listaGastos" style="margin-top:10px;"></div>
+            </div>
+        </div>
+
+        <!-- CIERRE DE CAJA -->
+        <div id="secCierre" class="section">
+            <h2>🏦 CIERRE DE CAJA</h2>
+            <button class="red" onclick="abrirCierreCaja()" style="width:100%;padding:15px;font-size:16px;font-weight:bold;">CERRAR CAJA</button>
+            <div id="cierreInfo" class="cierre-info" style="display:none;">
+                <p><strong>Última apertura:</strong> <span id="ultimaApertura">-</span></p>
+                <p><strong>Pedidos entregados:</strong> <span id="pedidosContados">0</span></p>
+                <p><strong>Ventas acumuladas:</strong> $<span id="ventasAcumuladas">0</span></p>
+                <p><strong>Gastos acumulados:</strong> $<span id="gastosAcumulados">0</span></p>
+                <p><strong>Diferencia:</strong> $<span id="diferenciaCaja">0</span></p>
+            </div>
+        </div>
+
+        <!-- REPORTES -->
+        <div id="secReportes" class="section">
+            <h2>📊 REPORTES</h2>
+            <button class="orangeBtn" onclick="abrirReportes()">Ver Reportes</button>
+            <button class="blue" onclick="exportarReporteDiario()">Reporte Diario PDF</button>
+        </div>
+    </div>
+
+    <!-- ── PANEL DERECHO: TICKET PEDIDO ACTIVO ── -->
+    <div id="secTicket" class="ticketPanel">
+        <div class="ticketHeader">
+            <div>
+                <div style="font-size:12px;color:#888;">PEDIDO ACTIVO</div>
+                <div style="font-size:16px;font-weight:bold;" id="ticketNumPedido">— Sin pedido seleccionado —</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="red" onclick="exportarFacturaPedido()" style="font-size:12px;padding:8px 12px;">🖨️ Factura</button>
+            </div>
+        </div>
+        <div class="ticket" id="ticket">
+            <img id="ticketLogo" src="" alt="Logo">
+            <h2 style="color:#ff4500;">LAS ALAS DEL GATO</h2>
+            <p style="color:#888;font-size:12px;margin-bottom:10px;">Sistema POS</p>
+
+            <div id="ticketInfoPedido" style="display:none;">
+                <div class="pedido-info-box">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left;">
+                        <div><div class="pi-label">Cliente</div><div class="pi-valor" id="tCliente">-</div></div>
+                        <div><div class="pi-label">Teléfono</div><div class="pi-valor" id="tTelefono">-</div></div>
+                        <div style="grid-column:1/-1;"><div class="pi-label">Dirección</div><div class="pi-valor" id="tDireccion">-</div></div>
+                        <div><div class="pi-label">Pago</div><div class="pi-valor" id="tMetodoPago">-</div></div>
+                        <div><div class="pi-label">Estado</div><div id="tEstadoBadge" class="pi-valor">-</div></div>
+                    </div>
+                </div>
+                <!-- Botones de estado -->
+                <div class="estados-btn" style="justify-content:center;margin-bottom:12px;">
+                    <button class="btn-estado nuevo" onclick="cambiarEstado('nuevo')"> Nuevo</button>
+                    <button class="btn-estado preparando" onclick="cambiarEstado('preparando')"> Preparando</button>
+                    <button class="btn-estado listo" onclick="cambiarEstado('listo')"> Listo</button>
+                    <button class="btn-estado entregado" onclick="cambiarEstado('entregado')"> Entregado</button>
+                </div>
+                <div id="notasPedido" style="font-size:12px;color:#888;font-style:italic;margin-bottom:8px;"></div>
+            </div>
+
+            <div id="ticketVacio" style="color:#aaa;padding:30px 0;">
+                <div style="font-size:48px;margin-bottom:10px;"></div>
+                <p>Crea o selecciona un pedido<br>para ver los detalles aquí</p>
+            </div>
+
+            <table id="tablaPedido" style="display:none;">
+                <tr><th>Combo</th><th>Cant</th><th>Subtotal</th><th>-</th></tr>
+                <tbody id="cuenta"></tbody>
+            </table>
+
+            <div id="totalPedidoWrap" style="display:none;">
+                <div class="total">$<span id="totalMesa">0</span></div>
+                <div id="infoPiezasPedido" style="font-size:13px;color:#888;margin:6px 0;"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+                    <button class="green" onclick="cerrarCuenta()">✅ Cobrar y Entregar</button>
+                    <button class="orangeBtn" onclick="abrirModalPago()">💳 Cobro Parcial</button>
+                </div>
+                <button class="red" onclick="cancelarPedido()" style="width:100%;margin-top:8px;font-size:12px;padding:8px;">🗑️ Cancelar Pedido</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ MODAL AGREGAR STOCK ══════════════════════════════════ -->
+<div id="modalStock" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="cerrarModalStock()">&times;</span>
+        <h2 style="color:#ff4500;margin-bottom:16px;"> Agregar Stock de Piezas</h2>
+        <p style="color:#aaa;font-size:13px;margin-bottom:16px;">Ingresa cuántas piezas de alas tienes disponibles para hoy.</p>
+        <label style="display:block;color:#888;font-size:12px;letter-spacing:1px;margin-bottom:6px;">PIEZAS A AGREGAR</label>
+        <input type="number" id="inputStockAgregar" placeholder="Ej: 100" style="width:100%;padding:14px;font-size:20px;border-radius:10px;background:#1a1a1a;border:1.5px solid #333;color:white;outline:none;margin-bottom:6px;">
+        <div style="font-size:12px;color:#aaa;margin-bottom:16px;">Stock actual: <strong style="color:#ff4500;" id="stockActualModal">0</strong> piezas → Quedará: <strong style="color:#4ade80;" id="stockResultadoModal">0</strong> piezas</div>
+        <button class="green" onclick="confirmarAgregarStock()" style="width:100%;padding:14px;font-size:16px;">✅ Confirmar</button>
+    </div>
+</div>
+
+<!-- ══ MODAL COBRO PARCIAL ══════════════════════════════════ -->
+<div class="modal-pago" id="modalPago">
+    <div class="modal-pago-inner">
+        <h2>💳 Opciones de Cobro</h2>
+        <p class="subtitulo">Pedido <span id="mpMesa">-</span> · Total: <strong style="color:#ff4500">$<span id="mpTotal">0</span></strong> · Pendiente: <strong style="color:#22c55e">$<span id="mpPendiente">0</span></strong></p>
+        <div class="tabs-pago">
+            <button class="tab-pago activo" onclick="cambiarTabPago('libre')">💵 Monto libre</button>
+            <button class="tab-pago" onclick="cambiarTabPago('dividir')">👥 Dividir</button>
+        </div>
+        <div class="alerta-pago" id="alertaPago"></div>
+        <div class="panel-pago activo" id="panelLibre">
+            <label>¿Cuánto paga este cliente?</label>
+            <input type="number" id="inputMontoPago" placeholder="$0" min="0" oninput="actualizarResumenLibre()">
+            <div class="resumen-pago" id="resumenLibre">
+                <div class="linea"><span>Paga ahora</span><span id="rlPaga">$0</span></div>
+                <div class="linea naranja"><span>Queda pendiente</span><span id="rlPendiente">$0</span></div>
+            </div>
+        </div>
+        <div class="panel-pago" id="panelDividir">
+            <label>¿Entre cuántas personas?</label>
+            <div class="cuotas-grid">
+                <button class="cuota-btn" onclick="seleccionarCuotas(2)">2</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(3)">3</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(4)">4</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(5)">5</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(6)">6</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(7)">7</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(8)">8</button>
+                <button class="cuota-btn" onclick="seleccionarCuotas(0)">✏️</button>
+            </div>
+            <input type="number" id="inputCuotas" placeholder="Nº personas" min="1" oninput="calcularCuotas()" style="display:none;">
+            <div class="resumen-pago" id="resumenDividir" style="display:none;">
+                <div class="linea"><span>Saldo pendiente</span><span id="rdTotal">$0</span></div>
+                <div class="linea"><span>Personas</span><span id="rdPersonas">0</span></div>
+                <div class="linea" style="color:#ff4500;font-weight:bold;"><span>Cada uno paga</span><span id="rdCuota">$0</span></div>
+            </div>
+        </div>
+        <div class="pagos-realizados" id="pagosRealizadosWrap" style="display:none;">
+            <h4>Pagos recibidos</h4>
+            <div id="listaPagosRealizados"></div>
+        </div>
+        <button class="btn-cobrar" id="btnCobrar" onclick="registrarPagoParcial()">Registrar Pago</button>
+        <button class="btn-cancelar-pago" onclick="cerrarModalPago()">Cancelar</button>
+    </div>
+</div>
+
+<!-- ══ MODAL REPORTES ══════════════════════════════════════ -->
+<div id="reportesModal" class="modal">
+    <div class="modal-content" style="max-width:620px;">
+        <span class="close" onclick="cerrarReportes()">&times;</span>
+        <h2 style="color:#ff4500;margin-bottom:16px;">📊 REPORTES DE VENTAS</h2>
+        <h3 style="margin-bottom:8px;">Reporte Mensual</h3>
+        <select id="mesReporte" style="background:#1a1a1a;">
+            <option value="">-- Mes --</option>
+            <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
+            <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
+            <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
+            <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select>
+        <input id="anoReporte" type="number" placeholder="Año" min="2020" max="2099" style="background:#1a1a1a;width:90px;">
+        <button class="blue" onclick="verReporteMensual()">Ver</button>
+        <button class="orangeBtn" onclick="exportarReporteMensualPDF()">PDF</button>
+        <div id="reporteMensualDiv"></div>
+    </div>
+</div>
+
+<button id="btnCerrarSesion" class="red" onclick="cerrarSesion()" style="position:fixed;bottom:20px;right:20px;z-index:8000;padding:12px 18px;font-size:13px;">🚪 Cerrar Sesión</button>
+
+<script>
+/***********************************************************
+ * LICENCIA — MULTIMANT SAS · HMAC-SHA256
+ ***********************************************************/
+const DURACION_LICENCIA = 30;
+const _M = "MULTIMANT#GATOALAS$2025!SJB";
+
+async function _hmac(msg) {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", enc.encode(_M), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(msg));
+    return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,"0")).join("").toUpperCase().substring(0,16);
+}
+function obtenerIDEquipo() {
+    let id = localStorage.getItem("idEquipoGato");
+    if (!id) { id = "POS-" + crypto.randomUUID().replace(/-/g,"").substring(0,8).toUpperCase(); localStorage.setItem("idEquipoGato", id); }
+    return id;
+}
+async function guardarLicencia(inicioISO, durDias) {
+    let firma = await _hmac("LIC:" + inicioISO + ":" + durDias + ":" + obtenerIDEquipo());
+    localStorage.setItem("lic_gato_i", inicioISO); localStorage.setItem("lic_gato_d", String(durDias)); localStorage.setItem("lic_gato_f", firma);
+}
+async function leerLicencia() {
+    let i = localStorage.getItem("lic_gato_i"), d = localStorage.getItem("lic_gato_d"), f = localStorage.getItem("lic_gato_f");
+    if (!i || !d || !f) return null;
+    let fe = await _hmac("LIC:" + i + ":" + d + ":" + obtenerIDEquipo());
+    if (f !== fe) return null;
+    return { inicio: new Date(i), dur: parseInt(d) };
+}
+async function guardarFechaUso() {
+    let iso = new Date().toISOString(), firma = await _hmac("FECHA:" + iso + ":" + obtenerIDEquipo());
+    localStorage.setItem("uf_gato_i", iso); localStorage.setItem("uf_gato_f", firma);
+}
+async function verificarManipulacionFecha() {
+    let iso = localStorage.getItem("uf_gato_i"), firma = localStorage.getItem("uf_gato_f"), hoy = new Date();
+    if (iso && firma) {
+        if (firma !== await _hmac("FECHA:" + iso + ":" + obtenerIDEquipo())) { bloqueoFraude("Datos de fecha alterados."); return; }
+        if (hoy < new Date(iso)) { bloqueoFraude("Fecha del sistema retrasada."); return; }
+    }
+    await guardarFechaUso();
+}
+function bloqueoFraude(motivo) {
+    document.body.innerHTML = '<div style="background:#0d0d0d;height:100vh;display:flex;justify-content:center;align-items:center;"><div style="background:#111;padding:50px;border-radius:25px;width:520px;text-align:center;color:white;border:2px solid red;"><h1 style="color:red;margin-bottom:20px;">⛔ SISTEMA BLOQUEADO</h1><h2>Integridad comprometida</h2><br><p style="color:#aaa">' + motivo + '</p><p style="color:#aaa;margin-top:12px">Contacte al administrador.</p><p style="margin-top:20px;font-size:13px;color:#555;">MULTIMANT SAS</p></div></div>';
+    throw new Error("BLOQUEO: " + motivo);
+}
+async function mostrarDiasLicencia() {
+    let lic = await leerLicencia(); if (!lic) return;
+    let restantes = Math.max(0, lic.dur - Math.floor((new Date() - lic.inicio) / 86400000));
+    let dias = document.getElementById("diasLicencia"), caja = document.getElementById("licenciaBox");
+    if (dias) dias.innerText = restantes;
+    if (restantes <= 5) { if(dias) dias.style.color="red"; if(caja) caja.style.borderColor="red"; }
+    else if (restantes <= 10) { if(dias) dias.style.color="orange"; }
+    else { if(dias) dias.style.color="#00ff66"; }
+}
+async function verificarLicencia() {
+    let lic = await leerLicencia();
+    if (!lic) { await guardarLicencia(new Date().toISOString(), DURACION_LICENCIA); return; }
+    if (Math.floor((new Date() - lic.inicio) / 86400000) >= lic.dur) pantallaLicencia();
+}
+async function verificarIntegridad() {
+    let i = localStorage.getItem("lic_gato_i"), d = localStorage.getItem("lic_gato_d"), f = localStorage.getItem("lic_gato_f");
+    if (i && d && f) { if (f !== await _hmac("LIC:" + i + ":" + d + ":" + obtenerIDEquipo())) bloqueoFraude("Licencia modificada manualmente."); }
+}
+function pantallaLicencia() {
+    let id = obtenerIDEquipo();
+    document.body.innerHTML = `<div style="height:100vh;display:flex;justify-content:center;align-items:center;background:#0d0d0d;"><div style="width:520px;background:#111;padding:45px;border-radius:25px;color:white;text-align:center;border:2px solid #ff4500;"><div style="font-size:48px;margin-bottom:10px;">🔐</div><h1 style="color:#ff4500;margin-bottom:8px;">LICENCIA VENCIDA</h1><p style="color:#aaa;margin-bottom:24px;">Contacte a MULTIMANT SAS para renovar</p><div style="background:#1a1a1a;border-radius:12px;padding:16px;margin-bottom:20px;text-align:left;"><div style="font-size:11px;color:#aaa;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">ID de este equipo</div><div style="font-family:monospace;font-size:18px;color:#ff4500;letter-spacing:2px;">${id}</div><button onclick="navigator.clipboard.writeText('${id}').then(()=>alert('ID copiado'))" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:6px 14px;border-radius:8px;margin-top:10px;cursor:pointer;font-size:12px;">📋 Copiar ID</button></div><input id="claveLicencia" type="password" placeholder="Clave de activación" style="width:100%;padding:15px;font-size:16px;border-radius:10px;border:2px solid #333;background:#1a1a1a;color:white;margin-bottom:14px;text-align:center;letter-spacing:2px;"><div id="msgActivacion" style="min-height:24px;margin-bottom:12px;font-size:14px;"></div><button onclick="activarLicencia()" style="background:#15803d;width:100%;padding:15px;border:none;border-radius:10px;color:white;font-weight:bold;font-size:18px;cursor:pointer;">✅ ACTIVAR LICENCIA</button><p style="margin-top:24px;font-size:11px;color:#555;">MULTIMANT SAS • Las Alas del Gato</p></div></div>`;
+}
+async function activarLicencia() {
+    let clave = (document.getElementById("claveLicencia").value||"").trim().toUpperCase();
+    let msg = document.getElementById("msgActivacion");
+    if (!clave) { msg.style.color="red"; msg.textContent="⚠ Ingresa la clave."; return; }
+    let partes = clave.split(":");
+    if (partes.length < 2) { msg.style.color="red"; msg.textContent="⚠ Formato inválido."; return; }
+    let diasStr = partes[partes.length-1], firmaRecibida = partes.slice(0,-1).join(":");
+    let dias = parseInt(diasStr);
+    if (isNaN(dias)||dias<1||dias>3650) { msg.style.color="red"; msg.textContent="⚠ Días inválidos."; return; }
+    let hoy = new Date(), mesAno = String(hoy.getMonth()+1).padStart(2,"0")+String(hoy.getFullYear());
+    if (firmaRecibida === await _hmac(obtenerIDEquipo()+":"+diasStr+":"+mesAno)) {
+        await guardarLicencia(new Date().toISOString(), dias);
+        msg.style.color="#00ff66"; msg.textContent="✅ Licencia activada por "+dias+" días.";
+        setTimeout(()=>location.reload(), 1500);
+    } else { msg.style.color="red"; msg.textContent="❌ Clave incorrecta."; }
+}
+
+/*** LOGIN ***/
+const USER = "gato", PASS = "alas2025";
+function entrarSistema() {
+    if (document.getElementById("usuarioLogin").value===USER && document.getElementById("claveLogin").value===PASS) {
+        document.getElementById("loginScreen").style.display="none";
+        document.getElementById("sistema").style.display="grid";
+        sessionStorage.setItem("autenticadoGato","si");
+    } else { document.getElementById("errorLogin").style.display="block"; }
+}
+document.addEventListener("keydown", e => { if(e.key==="Enter") entrarSistema(); });
+window.onload = function() {
+    if (sessionStorage.getItem("autenticadoGato")==="si") {
+        document.getElementById("loginScreen").style.display="none";
+        document.getElementById("sistema").style.display="grid";
+    }
+    let logo = localStorage.getItem("gatoLogoB64");
+    if (logo) { document.getElementById("logoImg").src=logo; document.getElementById("ticketLogo").src=logo; }
+};
+
+/***********************************************************
+ *  DATOS DEL SISTEMA
+ ***********************************************************/
+// STOCK: se maneja en PIEZAS de alas
+let stockPiezas      = 0;   // piezas disponibles actuales
+let stockMaxDia      = 0;   // máximo del día para la barra
+let piezasConsumidasHoy = 0;
+
+// PEDIDOS: cada pedido es un objeto, NO mesas
+let pedidos = [];           // array de pedidos
+let pedidoActivoId = null;  // id del pedido seleccionado
+let contadorPedidos = 1;
+let filtroActual = 'todos';
+
+// PRODUCTOS (combos) — piezas = cuántas piezas de alas consume
+let productos = [
+    { nombre: "Dosis de Control",  precio: 26000, piezas: 12, emoji: "🍗" },
+    { nombre: "Zarpazo",           precio: 42000, piezas: 24, emoji: "🔥" },
+    { nombre: "Para el Combo",     precio: 53000, piezas: 36, emoji: "🐱" },
+    { nombre: "Para la Manada",    precio: 65000, piezas: 50, emoji: "👑" }
+];
+
+// Bebidas: stock en UNIDADES (no piezas de alas)
+let bebidas = []; // { nombre, precio, stock, emoji }
+
+// FINANZAS
+let ventas = 0;
+let historialVentas = [];
+let historialGastos = [];
+let gastos = [];
+let cierresCaja = [];
+let ventasDesdeUltimoCierre = 0;
+let gastosDesdeUltimoCierre = 0;
+let pedidosEntregados = 0;
+let ultimaAperturaCaja = new Date();
+
+// PAGOS PARCIALES por pedido
+let pagosParciales = {}; // { pedidoId: [{monto, hora}] }
+let tabPagoActual = 'libre';
+let cuotasSeleccionadas = 0;
+let cuotaFija = 0;
+
+/***********************************************************
+ *  PERSISTENCIA
+ ***********************************************************/
+function cargarDatos() {
+    let d = localStorage.getItem("gatoAlasPosV2");
+    if (d) {
+        let datos = JSON.parse(d);
+        stockPiezas            = datos.stockPiezas            || 0;
+        stockMaxDia            = datos.stockMaxDia            || 0;
+        piezasConsumidasHoy    = datos.piezasConsumidasHoy    || 0;
+        pedidos                = datos.pedidos                || [];
+        contadorPedidos        = datos.contadorPedidos        || 1;
+        productos              = datos.productos              || productos;
+        bebidas                = datos.bebidas                || [];
+        historialVentas        = datos.historialVentas        || [];
+        historialGastos        = datos.historialGastos        || [];
+        gastos                 = datos.gastos                 || [];
+        cierresCaja            = datos.cierresCaja            || [];
+        ventasDesdeUltimoCierre= datos.ventasDesdeUltimoCierre|| 0;
+        gastosDesdeUltimoCierre= datos.gastosDesdeUltimoCierre|| 0;
+        pedidosEntregados      = datos.pedidosEntregados      || 0;
+        ultimaAperturaCaja     = datos.ultimaAperturaCaja ? new Date(datos.ultimaAperturaCaja) : new Date();
+        pagosParciales         = datos.pagosParciales         || {};
+        ventas                 = datos.ventas                 || 0;
+        precioPapas            = datos.precioPapas            || 4000;
+    }
+    actualizarInfoCierre();
+    actualizarStockUI();
+}
+
+function guardarDatos() {
+    localStorage.setItem("gatoAlasPosV2", JSON.stringify({
+        stockPiezas, stockMaxDia, piezasConsumidasHoy, pedidos, contadorPedidos,
+        productos, bebidas, historialVentas, historialGastos, gastos, cierresCaja,
+        ventasDesdeUltimoCierre, gastosDesdeUltimoCierre, pedidosEntregados,
+        ultimaAperturaCaja: ultimaAperturaCaja.toISOString(), pagosParciales, ventas, precioPapas
+    }));
+}
+
+function exportarBackup() {
+    let blob = new Blob([JSON.stringify(JSON.parse(localStorage.getItem("gatoAlasPosV2")||"{}"),null,2)], {type:'application/json'});
+    let a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'backup_gato_' + new Date().toISOString().slice(0,10) + '.json'; a.click();
+}
+function importarBackup(archivo) {
+    if (!archivo) return;
+    new FileReader().onload = function(e) {
+        try {
+            let datos = JSON.parse(e.target.result);
+            if (!confirm('¿Restaurar backup? Los datos actuales serán reemplazados.')) return;
+            localStorage.setItem("gatoAlasPosV2", JSON.stringify(datos));
+            location.reload();
+        } catch(err) { alert('❌ Archivo inválido.'); }
+    }, new FileReader().readAsText(archivo);
+    // fix: reread properly
+    let fr = new FileReader();
+    fr.onload = function(e) {
+        try {
+            let datos = JSON.parse(e.target.result);
+            if (!confirm('¿Restaurar backup? Los datos actuales serán reemplazados.')) return;
+            localStorage.setItem("gatoAlasPosV2", JSON.stringify(datos));
+            location.reload();
+        } catch(err) { alert('❌ Archivo inválido.'); }
+    };
+    fr.readAsText(archivo);
+}
+
+/***********************************************************
+ *  RELOJ
+ ***********************************************************/
+function reloj() {
+    let f = new Date().toLocaleString('es-CO');
+    let fEl = document.getElementById('fecha'); if (fEl) fEl.innerText = f;
+}
+setInterval(reloj, 1000);
+
+/***********************************************************
+ *  STOCK DE PIEZAS
+ ***********************************************************/
+function actualizarStockUI() {
+    let el = document.getElementById('stockNumero');
+    let bar = document.getElementById('stockBar');
+    let maxEl = document.getElementById('stockMax');
+    let consEl = document.getElementById('piezasConsumidas');
+    if (el) el.innerText = stockPiezas.toLocaleString('es-CO');
+    if (maxEl) maxEl.innerText = stockMaxDia.toLocaleString('es-CO');
+    if (consEl) consEl.innerText = piezasConsumidasHoy.toLocaleString('es-CO');
+    if (bar) {
+        let pct = stockMaxDia > 0 ? Math.round((stockPiezas / stockMaxDia) * 100) : 0;
+        bar.style.width = pct + '%';
+        bar.className = 'stock-bar' + (pct < 20 ? ' low' : '');
+    }
+    // Color del número según disponibilidad
+    if (el) {
+        el.style.color = stockPiezas <= 20 ? '#f87171' : stockPiezas <= 50 ? '#ffa040' : '#ff4500';
+    }
+    cargarCombos(); // actualizar combos según stock
+}
+
+function abrirModalAgregarStock() {
+    document.getElementById('inputStockAgregar').value = '';
+    document.getElementById('stockActualModal').innerText = stockPiezas;
+    document.getElementById('stockResultadoModal').innerText = stockPiezas;
+    document.getElementById('modalStock').style.display = 'block';
+    document.getElementById('inputStockAgregar').oninput = function() {
+        let val = parseInt(this.value) || 0;
+        document.getElementById('stockResultadoModal').innerText = (stockPiezas + val).toLocaleString('es-CO');
+    };
+    document.getElementById('inputStockAgregar').focus();
+}
+function cerrarModalStock() { document.getElementById('modalStock').style.display = 'none'; }
+function confirmarAgregarStock() {
+    let val = parseInt(document.getElementById('inputStockAgregar').value) || 0;
+    if (val <= 0) { alert('Ingresa una cantidad válida mayor a 0'); return; }
+    stockPiezas += val;
+    if (stockPiezas > stockMaxDia) stockMaxDia = stockPiezas;
+    guardarDatos(); actualizarStockUI(); cerrarModalStock();
+    alert(`✅ Stock actualizado: ${stockPiezas} piezas disponibles`);
+}
+
+// Cuántas piezas consume un pedido completo
+function piezasDelPedido(pedidoId) {
+    let p = pedidos.find(x => x.id === pedidoId);
+    if (!p) return 0;
+    return p.items.reduce((s, item) => {
+        let prod = productos.find(x => x.nombre === item.nombre);
+        return s + (prod ? prod.piezas * item.cantidad : 0);
+    }, 0);
+}
+
+/***********************************************************
+ *  COMBOS (GRID DE PRODUCTOS)
+ ***********************************************************/
+function cargarCombos() {
+    let html = '';
+    productos.forEach((p, i) => {
+        let sinStock = stockPiezas < p.piezas;
+        html += `<div class="combo-card${sinStock ? ' sin-stock' : ''}" onclick="agregarComboAPedido(${i})">
+            <div class="combo-badge">${p.piezas} piezas</div>
+            <div class="combo-emoji">${p.emoji || '🍗'}</div>
+            <div class="combo-nombre">${p.nombre}</div>
+            <div class="combo-piezas">Descuenta ${p.piezas} piezas</div>
+            <div class="combo-precio">$${p.precio.toLocaleString('es-CO')}</div>
+            ${sinStock ? '<div style="font-size:10px;color:#f87171;margin-top:4px;">Sin stock suficiente</div>' : ''}
+        </div>`;
+    });
+    let grid = document.getElementById('combosGrid');
+    if (grid) grid.innerHTML = html || '<p style="color:#aaa;">No hay combos configurados</p>';
+    renderPapasCard();
+}
+
+/***********************************************************
+ *  PEDIDOS
+ ***********************************************************/
+function crearNuevoPedido() {
+    let cliente = document.getElementById('inputCliente').value.trim();
+    if (!cliente) { alert('Ingresa el nombre del cliente'); document.getElementById('inputCliente').focus(); return; }
+    let nuevoPedido = {
+        id: 'PED-' + String(contadorPedidos).padStart(4, '0'),
+        numero: contadorPedidos++,
+        cliente,
+        telefono:    document.getElementById('inputTelefono').value.trim(),
+        direccion:   document.getElementById('inputDireccion').value.trim(),
+        metodoPago:  document.getElementById('inputMetodoPago').value,
+        notas:       document.getElementById('inputNotas').value.trim(),
+        estado:      'nuevo',
+        items:       [],
+        fecha:       new Date().toISOString(),
+        total:       0
+    };
+    pedidos.unshift(nuevoPedido);
+    pedidoActivoId = nuevoPedido.id;
+    // Limpiar form
+    ['inputCliente','inputTelefono','inputDireccion','inputNotas'].forEach(id => { document.getElementById(id).value = ''; });
+    guardarDatos(); renderPedidos(); verCuenta();
+}
+
+// ── SALSAS ──────────────────────────────────────────────────────────────
+const SALSAS = ['BBQ','Miel Mostaza','BBQ Picante','Dulce Salvaje','Miel Endiablada','Maracuyá','Teriyaki'];
+let _comboIdx = null;
+let _salsasSel = [];   // hasta 3
+
+function agregarComboAPedido(i) {
+    if (!pedidoActivoId) { alert('Primero crea o selecciona un pedido'); return; }
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido) return;
+    if (pedido.estado === 'entregado') { alert('Este pedido ya fue entregado. No puedes modificarlo.'); return; }
+    let prod = productos[i];
+    if (stockPiezas < prod.piezas) { alert(`Stock insuficiente. Necesitas ${prod.piezas} piezas, solo hay ${stockPiezas}.`); return; }
+    _comboIdx = i;
+    _salsasSel = [];
+    // Render modal
+    document.getElementById('ms_comboNombre').textContent = (prod.emoji||'🍗') + ' ' + prod.nombre;
+    document.getElementById('ms_comboPrec').textContent = '$' + prod.precio.toLocaleString('es-CO');
+    document.getElementById('salsaRequeridaMsg').style.display = 'none';
+    renderSalsasGrid();
+    document.getElementById('modalSalsas').classList.add('activo');
+}
+
+function renderSalsasGrid() {
+    document.getElementById('ms_contSalsas').textContent = _salsasSel.length;
+    let grid = document.getElementById('salsasGrid');
+    grid.innerHTML = SALSAS.map((s, i) => {
+        let idx = _salsasSel.indexOf(s);
+        let selClass = idx >= 0 ? ' sel' : '';
+        let badge = idx >= 0 ? `<span class="salsa-num">${idx+1}</span>` : '';
+        return `<button class="salsa-btn${selClass}" onclick="toggleSalsa('${s}')">${badge}${s}</button>`;
+    }).join('');
+}
+
+function toggleSalsa(nombre) {
+    let idx = _salsasSel.indexOf(nombre);
+    if (idx >= 0) {
+        _salsasSel.splice(idx, 1);   // deseleccionar
+    } else {
+        if (_salsasSel.length >= 3) { return; }  // máx 3
+        _salsasSel.push(nombre);
+    }
+    document.getElementById('salsaRequeridaMsg').style.display = 'none';
+    renderSalsasGrid();
+}
+
+function cerrarModalSalsas() {
+    _comboIdx = null; _salsasSel = [];
+    document.getElementById('modalSalsas').classList.remove('activo');
+}
+
+function confirmarComboConSalsas() {
+    if (_salsasSel.length === 0) {
+        document.getElementById('salsaRequeridaMsg').style.display = 'block';
+        return;
+    }
+    let prod = productos[_comboIdx];
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    // Descontar stock
+    stockPiezas -= prod.piezas;
+    piezasConsumidasHoy += prod.piezas;
+    // Nombre con salsas
+    let nombreItem = prod.nombre + ' · ' + _salsasSel.join(' / ');
+    let item = pedido.items.find(x => x.nombre === nombreItem);
+    if (item) { item.cantidad++; }
+    else { pedido.items.push({ nombre: nombreItem, precio: prod.precio, piezas: prod.piezas, cantidad: 1, emoji: prod.emoji||'🍗', salsas: [..._salsasSel] }); }
+    pedido.total = pedido.items.reduce((s, it) => s + it.precio * it.cantidad, 0);
+    cerrarModalSalsas();
+    guardarDatos(); actualizarStockUI(); verCuenta(); renderPedidos();
+}
+
+// ── PAPAS ────────────────────────────────────────────────────────────────
+let precioPapas = 4000;
+
+function renderPapasCard() {
+    let wrap = document.getElementById('papasCardWrap');
+    if (!wrap) return;
+    wrap.innerHTML = `
+        <div class="combo-card" onclick="agregarPapasAPedido()"
+             style="border-color:#ca8a04;background:linear-gradient(135deg,#1c1400,#1a1a1a);grid-column:1/-1;">
+            <div class="combo-badge" style="background:#ca8a04;">Adicional</div>
+            <div class="combo-emoji">🍟</div>
+            <div class="combo-nombre">Porción de Papas</div>
+            <div class="combo-piezas" style="color:#fbbf24;">Sin descuento de piezas</div>
+            <div class="combo-precio" style="color:#fbbf24;">$${precioPapas.toLocaleString('es-CO')}</div>
+        </div>`;
+}
+
+function agregarPapasAPedido() {
+    if (!pedidoActivoId) { alert('Primero crea o selecciona un pedido'); return; }
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido || pedido.estado === 'entregado') { alert('Este pedido ya fue entregado.'); return; }
+    let item = pedido.items.find(x => x.esPapas);
+    if (item) { item.cantidad++; }
+    else { pedido.items.push({ nombre: 'Porción de Papas', precio: precioPapas, piezas: 0, cantidad: 1, emoji: '🍟', esPapas: true }); }
+    pedido.total = pedido.items.reduce((s, it) => s + it.precio * it.cantidad, 0);
+    guardarDatos(); verCuenta(); renderPedidos();
+}
+
+function quitarItemPedido(nombreItem) {
+    if (!pedidoActivoId) return;
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido || pedido.estado === 'entregado') return;
+    let item = pedido.items.find(x => x.nombre === nombreItem);
+    if (!item) return;
+    if (item.esBebida) {
+        // Devolver unidad al stock de bebidas
+        let beb = bebidas.find(b => b.nombre === nombreItem);
+        if (beb) beb.stock++;
+        cargarBebidasGrid();
+    } else if (item.esPapas) {
+        // Papas: sin piezas que devolver
+    } else {
+        // Devolver piezas al stock de alas
+        stockPiezas += item.piezas;
+        piezasConsumidasHoy = Math.max(0, piezasConsumidasHoy - item.piezas);
+    }
+    item.cantidad--;
+    pedido.items = pedido.items.filter(x => x.cantidad > 0);
+    pedido.total = pedido.items.reduce((s, it) => s + it.precio * it.cantidad, 0);
+    guardarDatos(); actualizarStockUI(); verCuenta(); renderPedidos();
+}
+
+function seleccionarPedido(id) {
+    pedidoActivoId = id;
+    renderPedidos(); verCuenta();
+}
+
+function cambiarEstado(nuevoEstado) {
+    if (!pedidoActivoId) return;
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido) return;
+    pedido.estado = nuevoEstado;
+    guardarDatos(); renderPedidos(); verCuenta();
+}
+
+function cancelarPedido() {
+    if (!pedidoActivoId) return;
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido) return;
+    if (!confirm(`¿Cancelar pedido ${pedido.id} de ${pedido.cliente}? Las piezas serán devueltas al stock.`)) return;
+    // Devolver piezas de alas y unidades de bebidas
+    let piezasDevolver = pedido.items.reduce((s, it) => s + (it.esBebida || it.esPapas ? 0 : it.piezas) * it.cantidad, 0);
+    stockPiezas += piezasDevolver;
+    piezasConsumidasHoy = Math.max(0, piezasConsumidasHoy - piezasDevolver);
+    pedido.items.filter(it => it.esBebida).forEach(it => {
+        let beb = bebidas.find(b => b.nombre === it.nombre);
+        if (beb) beb.stock += it.cantidad;
+    });
+    cargarBebidasGrid();
+    // Quitar pagos parciales
+    delete pagosParciales[pedidoActivoId];
+    // Eliminar pedido
+    let idCancelado = pedidoActivoId;
+    pedidos = pedidos.filter(p => p.id !== idCancelado);
+    pedidoActivoId = null;
+    guardarDatos(); actualizarStockUI(); renderPedidos(); verCuenta();
+}
+
+function filtrarPedidos(filtro) {
+    filtroActual = filtro;
+    ['todos','nuevo','preparando','listo'].forEach(f => {
+        let btn = document.getElementById('filtro-'+f);
+        if (btn) btn.style.background = f === filtro ? '#ff4500' : (f==='nuevo'?'#1e3a5f':f==='preparando'?'#4a2a00':f==='listo'?'#052e16':'#2563eb');
+    });
+    renderPedidos();
+}
+
+function renderPedidos() {
+    let grid = document.getElementById('pedidosGrid');
+    if (!grid) return;
+    let lista = filtroActual === 'todos' ? pedidos : pedidos.filter(p => p.estado === filtroActual);
+    // Excluir entregados del listado general excepto si filtran por entregado
+    if (filtroActual === 'todos') lista = pedidos.filter(p => p.estado !== 'entregado');
+    if (lista.length === 0) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#444;padding:20px;font-size:13px;">No hay pedidos' + (filtroActual !== 'todos' ? ' en este estado' : '') + '</div>'; return; }
+    let html = lista.map(p => {
+        let piezas = p.items.reduce((s,it) => s + it.piezas * it.cantidad, 0);
+        let estadoMap = { nuevo:'estado-nuevo', preparando:'estado-preparando', listo:'estado-listo', entregado:'estado-entregado' };
+        let estadoIcono = { nuevo:'🆕', preparando:'🔥', listo:'✅', entregado:'🛵' };
+        let estadoTexto = { nuevo:'Nuevo', preparando:'Prep.', listo:'Listo', entregado:'Entregado' };
+        let metodoIcono = {efectivo:'💵',transferencia:'📲',nequi:'🟣',daviplata:'🔴'};
+        return `<div class="pedido-card${p.id===pedidoActivoId?' activo':''}" onclick="seleccionarPedido('${p.id}')">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div class="ped-num">${p.id}</div>
+                <span class="ped-estado ${estadoMap[p.estado]}">${estadoIcono[p.estado]} ${estadoTexto[p.estado]}</span>
+            </div>
+            <div class="ped-cliente">${p.cliente}</div>
+            <div class="ped-total">$${p.total.toLocaleString('es-CO')}</div>
+            <div class="ped-piezas">${piezas}pz · ${metodoIcono[p.metodoPago]||''}</div>
+        </div>`;
+    }).join('');
+    grid.innerHTML = html;
+}
+
+/***********************************************************
+ *  TICKET (PANEL DERECHO)
+ ***********************************************************/
+function verCuenta() {
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    let vacio = document.getElementById('ticketVacio');
+    let infoBox = document.getElementById('ticketInfoPedido');
+    let tabla = document.getElementById('tablaPedido');
+    let totalWrap = document.getElementById('totalPedidoWrap');
+    let numPedido = document.getElementById('ticketNumPedido');
+
+    if (!pedido) {
+        if (vacio) vacio.style.display = 'block';
+        if (infoBox) infoBox.style.display = 'none';
+        if (tabla) tabla.style.display = 'none';
+        if (totalWrap) totalWrap.style.display = 'none';
+        if (numPedido) numPedido.innerText = '— Sin pedido seleccionado —';
+        return;
+    }
+    if (vacio) vacio.style.display = 'none';
+    if (infoBox) infoBox.style.display = 'block';
+    if (numPedido) numPedido.innerText = pedido.id + ' · ' + pedido.cliente;
+
+    // Info cliente
+    document.getElementById('tCliente').innerText = pedido.cliente;
+    document.getElementById('tTelefono').innerText = pedido.telefono || '—';
+    document.getElementById('tDireccion').innerText = pedido.direccion || '—';
+    let metodos = {efectivo:'💵 Efectivo',transferencia:'📲 Transferencia',nequi:'🟣 Nequi',daviplata:'🔴 Daviplata'};
+    document.getElementById('tMetodoPago').innerText = metodos[pedido.metodoPago] || pedido.metodoPago;
+    let estadoMap = { nuevo:'🆕 Nuevo',preparando:'🔥 Preparando',listo:'✅ Listo',entregado:'🛵 Entregado' };
+    document.getElementById('tEstadoBadge').innerText = estadoMap[pedido.estado] || pedido.estado;
+    let notasEl = document.getElementById('notasPedido');
+    if (notasEl) notasEl.innerText = pedido.notas ? '📝 ' + pedido.notas : '';
+
+    if (pedido.items.length === 0) {
+        if (tabla) tabla.style.display = 'none';
+        if (totalWrap) totalWrap.style.display = 'none';
+        return;
+    }
+    if (tabla) tabla.style.display = 'table';
+    if (totalWrap) totalWrap.style.display = 'block';
+
+    let html = '';
+    let piezasTotal = 0;
+    pedido.items.forEach(it => {
+        let sub = it.precio * it.cantidad;
+        piezasTotal += (it.esBebida ? 0 : it.piezas) * it.cantidad;
+        let subtitulo = it.esBebida
+            ? `<small style="color:#22c55e;"> bebida</small>`
+            : it.esPapas
+            ? `<small style="color:#fbbf24;"> adicional</small>`
+            : `<small style="color:#888;">${it.piezas}pz c/u</small>`;
+        html += `<tr>
+            <td style="text-align:left;font-size:12px;">${it.emoji||''}${it.nombre}<br>${subtitulo}</td>
+            <td>${it.cantidad}</td>
+            <td>$${sub.toLocaleString('es-CO')}</td>
+            <td><button class="smallBtn" onclick="quitarItemPedido('${it.nombre.replace(/'/g,"\\'")}')">-1</button></td>
+        </tr>`;
+    });
+    document.getElementById('cuenta').innerHTML = html;
+
+    let pagado = totalPagadoPedido(pedido.id);
+    let pendiente = Math.max(0, pedido.total - pagado);
+    if (pagado > 0) {
+        document.getElementById('totalMesa').innerHTML =
+            `<span style="text-decoration:line-through;color:#888;font-size:16px;">${pedido.total.toLocaleString('es-CO')}</span>
+             → <span style="color:#22c55e;">${pendiente.toLocaleString('es-CO')}</span>
+             <div style="font-size:12px;color:#aaa;">Pagado: $${pagado.toLocaleString('es-CO')}</div>`;
+    } else {
+        document.getElementById('totalMesa').innerText = pedido.total.toLocaleString('es-CO');
+    }
+    let infoP = document.getElementById('infoPiezasPedido');
+    if (infoP) infoP.innerText = `🍗 Total: ${piezasTotal} piezas de alas`;
+}
+
+/***********************************************************
+ *  CERRAR CUENTA / ENTREGAR
+ ***********************************************************/
+function cerrarCuenta() {
+    if (!pedidoActivoId) return;
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido || pedido.items.length === 0) { alert('El pedido está vacío.'); return; }
+    if (!confirm(`¿Marcar como ENTREGADO y cobrar?\n\nCliente: ${pedido.cliente}\nTotal: $${pedido.total.toLocaleString('es-CO')}\nMétodo: ${pedido.metodoPago}`)) return;
+    let yaAbonado = totalPagadoPedido(pedido.id);
+    let saldoFinal = Math.max(0, pedido.total - yaAbonado);
+    // Registrar venta
+    historialVentas.push({
+        fecha: new Date().toISOString(), pedidoId: pedido.id, cliente: pedido.cliente,
+        direccion: pedido.direccion, metodoPago: pedido.metodoPago,
+        total: pedido.total, saldoCobrado: saldoFinal,
+        piezas: pedido.items.reduce((s,it)=>s+it.piezas*it.cantidad,0),
+        detalles: pedido.items.map(it=>({producto:it.nombre,cantidad:it.cantidad,subtotal:it.precio*it.cantidad}))
+    });
+    ventas += saldoFinal;
+    ventasDesdeUltimoCierre += saldoFinal;
+    pedidosEntregados++;
+    pedido.estado = 'entregado';
+    document.getElementById('ventasDia').innerText = ventas.toLocaleString('es-CO');
+    // Mover a historial y quitar de lista activa después de 5 seg
+    setTimeout(() => {
+        pedidos = pedidos.filter(p => p.id !== pedidoActivoId || p.estado !== 'entregado');
+        if (pedidoActivoId === pedido.id) pedidoActivoId = pedidos.length > 0 ? pedidos[0].id : null;
+        guardarDatos(); renderPedidos(); verCuenta(); actualizarInfoCierre();
+    }, 3000);
+    pedidoActivoId = null;
+    guardarDatos(); renderPedidos(); verCuenta(); actualizarInfoCierre();
+    alert(`✅ Pedido entregado!\nTotal: $${pedido.total.toLocaleString('es-CO')}\nAbonado: $${yaAbonado.toLocaleString('es-CO')}\nCobrado ahora: $${saldoFinal.toLocaleString('es-CO')}`);
+}
+
+/***********************************************************
+ *  COBRO PARCIAL
+ ***********************************************************/
+function totalPagadoPedido(id) { return (pagosParciales[id]||[]).reduce((s,p)=>s+p.monto,0); }
+function pendientePedido() {
+    let p = pedidos.find(x=>x.id===pedidoActivoId);
+    return p ? Math.max(0, p.total - totalPagadoPedido(pedidoActivoId)) : 0;
+}
+
+function abrirModalPago() {
+    if (!pedidoActivoId) return;
+    let pedido = pedidos.find(p=>p.id===pedidoActivoId);
+    if (!pedido||pedido.total<=0) { alert('El pedido está vacío.'); return; }
+    document.getElementById('mpMesa').textContent = pedido.id;
+    document.getElementById('mpTotal').textContent = pedido.total.toLocaleString('es-CO');
+    document.getElementById('mpPendiente').textContent = pendientePedido().toLocaleString('es-CO');
+    document.getElementById('inputMontoPago').value = '';
+    document.getElementById('alertaPago').className = 'alerta-pago';
+    document.getElementById('btnCobrar').disabled = false;
+    actualizarResumenLibre(); actualizarListaPagosParciales(); cambiarTabPago('libre');
+    document.getElementById('modalPago').classList.add('activo');
+}
+function cerrarModalPago() {
+    cuotaFija=0; cuotasSeleccionadas=0;
+    document.querySelectorAll('.cuota-btn').forEach(b=>b.classList.remove('sel'));
+    document.getElementById('modalPago').classList.remove('activo');
+}
+function cambiarTabPago(tab) {
+    cuotaFija=0; cuotasSeleccionadas=0; tabPagoActual=tab;
+    document.querySelectorAll('.tab-pago').forEach((b,i)=>b.classList.toggle('activo',(i===0&&tab==='libre')||(i===1&&tab==='dividir')));
+    document.getElementById('panelLibre').classList.toggle('activo',tab==='libre');
+    document.getElementById('panelDividir').classList.toggle('activo',tab==='dividir');
+    document.getElementById('btnCobrar').textContent = tab==='libre'?'Registrar Pago':'Cobrar esta cuota';
+    document.getElementById('alertaPago').className='alerta-pago';
+}
+function actualizarResumenLibre() {
+    let monto=parseFloat(document.getElementById('inputMontoPago').value)||0;
+    let queda=Math.max(0,pendientePedido()-monto);
+    document.getElementById('rlPaga').textContent='$'+monto.toLocaleString('es-CO');
+    document.getElementById('rlPendiente').textContent='$'+queda.toLocaleString('es-CO');
+}
+function seleccionarCuotas(n) {
+    document.querySelectorAll('.cuota-btn').forEach(b=>b.classList.remove('sel'));
+    event.target.classList.add('sel');
+    let inputC=document.getElementById('inputCuotas');
+    if(n===0){inputC.style.display='block';inputC.focus();cuotasSeleccionadas=0;}
+    else{inputC.style.display='none';cuotasSeleccionadas=n;inputC.value=n;calcularCuotas();}
+}
+function calcularCuotas() {
+    let n=cuotasSeleccionadas||parseInt(document.getElementById('inputCuotas').value)||0;
+    let pendiente=pendientePedido();
+    let wrap=document.getElementById('resumenDividir');
+    if(n>=2){cuotaFija=Math.ceil(pendiente/n);document.getElementById('rdTotal').textContent='$'+pendiente.toLocaleString('es-CO');document.getElementById('rdPersonas').textContent=n;document.getElementById('rdCuota').textContent='$'+cuotaFija.toLocaleString('es-CO');wrap.style.display='block';cuotasSeleccionadas=n;}
+    else{wrap.style.display='none';cuotaFija=0;}
+}
+function registrarPagoParcial() {
+    let alerta=document.getElementById('alertaPago'), monto=0, pendiente=pendientePedido();
+    if(tabPagoActual==='libre'){
+        monto=parseFloat(document.getElementById('inputMontoPago').value)||0;
+        if(monto<=0){alerta.className='alerta-pago error';alerta.textContent='⚠️ Ingresa un monto válido.';return;}
+        if(monto>pendiente){alerta.className='alerta-pago error';alerta.textContent=`⚠️ Supera el pendiente ($${pendiente.toLocaleString('es-CO')}).`;return;}
+    } else {
+        let n=cuotasSeleccionadas||parseInt(document.getElementById('inputCuotas').value)||0;
+        if(n<2){alerta.className='alerta-pago error';alerta.textContent='⚠️ Selecciona al menos 2 personas.';return;}
+        monto=cuotaFija>0?cuotaFija:Math.ceil((pedidos.find(p=>p.id===pedidoActivoId)||{total:0}).total/n);
+        if(monto>pendiente)monto=pendiente;
+    }
+    if(!pagosParciales[pedidoActivoId])pagosParciales[pedidoActivoId]=[];
+    pagosParciales[pedidoActivoId].push({monto,hora:new Date().toLocaleTimeString()});
+    let nuevoPendiente=Math.max(0,pendientePedido());
+    document.getElementById('mpPendiente').textContent=nuevoPendiente.toLocaleString('es-CO');
+    if(nuevoPendiente<=0){
+        alerta.className='alerta-pago ok';alerta.textContent='✅ ¡Pagado completamente!';
+        document.getElementById('btnCobrar').disabled=true;
+        setTimeout(()=>{cerrarModalPago();},1500);
+    } else {
+        alerta.className='alerta-pago ok';alerta.textContent=`✅ Pago de $${monto.toLocaleString('es-CO')} registrado.`;
+        document.getElementById('inputMontoPago').value='';actualizarResumenLibre();
+    }
+    actualizarListaPagosParciales(); guardarDatos(); verCuenta();
+}
+function actualizarListaPagosParciales() {
+    let pagos=pagosParciales[pedidoActivoId]||[], wrap=document.getElementById('pagosRealizadosWrap'), lista=document.getElementById('listaPagosRealizados');
+    if(!wrap)return;
+    if(pagos.length===0){wrap.style.display='none';return;}
+    wrap.style.display='block';
+    lista.innerHTML=pagos.map((p,i)=>`<div class="pago-item"><span>${p.hora}</span><span class="monto">$${p.monto.toLocaleString('es-CO')}</span><button onclick="eliminarPagoParcialP(${i})">✕</button></div>`).join('');
+}
+function eliminarPagoParcialP(i) {
+    if(!pagosParciales[pedidoActivoId])return;
+    pagosParciales[pedidoActivoId].splice(i,1);
+    actualizarListaPagosParciales(); document.getElementById('mpPendiente').textContent=pendientePedido().toLocaleString('es-CO');
+    document.getElementById('btnCobrar').disabled=false; guardarDatos(); verCuenta();
+}
+
+/***********************************************************
+ *  BEBIDAS
+ ***********************************************************/
+function cargarBebidasGrid() {
+    let grid = document.getElementById('bebidasGrid');
+    if (!grid) return;
+    if (bebidas.length === 0) {
+        grid.innerHTML = '<div style="grid-column:1/-1;color:#555;font-size:12px;padding:8px;">Sin bebidas. Agrégalas en Administración.</div>';
+        return;
+    }
+    grid.innerHTML = bebidas.map((b, i) => {
+        let sinStock = b.stock <= 0;
+        return `<div onclick="${sinStock ? '' : 'agregarBebidaAPedido(' + i + ')'}"
+            style="background:#1a1a1a;border-radius:10px;padding:10px;text-align:center;
+            border:2px solid ${sinStock ? '#333' : '#1a3a1a'};cursor:${sinStock ? 'not-allowed' : 'pointer'};
+            opacity:${sinStock ? '0.4' : '1'};transition:all 0.2s;position:relative;"
+            onmouseover="if(${!sinStock})this.style.borderColor='#22c55e'"
+            onmouseout="if(${!sinStock})this.style.borderColor='#1a3a1a'">
+            <div style="font-size:24px;margin-bottom:4px;">${b.emoji || '🥤'}</div>
+            <div style="font-size:11px;font-weight:bold;color:#fff;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b.nombre}</div>
+            <div style="font-size:13px;font-weight:900;color:#22c55e;">$${b.precio.toLocaleString('es-CO')}</div>
+            <div style="font-size:10px;color:#555;margin-top:2px;">${b.stock} uds</div>
+        </div>`;
+    }).join('');
+}
+
+function agregarBebidaAPedido(i) {
+    if (!pedidoActivoId) { alert('Primero crea o selecciona un pedido'); return; }
+    let pedido = pedidos.find(p => p.id === pedidoActivoId);
+    if (!pedido || pedido.estado === 'entregado') return;
+    let beb = bebidas[i];
+    if (beb.stock <= 0) { alert('Sin stock de ' + beb.nombre); return; }
+    beb.stock--;
+    let item = pedido.items.find(x => x.nombre === beb.nombre && x.esBebida);
+    if (item) { item.cantidad++; }
+    else { pedido.items.push({ nombre: beb.nombre, precio: beb.precio, piezas: 0, cantidad: 1, esBebida: true, emoji: beb.emoji || '' }); }
+    pedido.total = pedido.items.reduce((s, it) => s + it.precio * it.cantidad, 0);
+    guardarDatos(); cargarBebidasGrid(); verCuenta(); renderPedidos();
+}
+
+function crearBebida() {
+    let nombre  = document.getElementById('nuevaBebidaNombre').value.trim();
+    let precio  = Number(document.getElementById('nuevaBebidaPrecio').value);
+    let stock   = Number(document.getElementById('nuevaBebidaStock').value);
+    if (!nombre || precio <= 0 || stock < 0) { alert('Completa todos los campos correctamente'); return; }
+    // Auto-emoji según nombre
+    let n = nombre.toLowerCase();
+    if (n.includes('coca') || n.includes('cola') || n.includes('pepsi')) emoji = '🥤';
+    if (n.includes('agua')) emoji = '💧';
+    if (n.includes('jugo') || n.includes('jugo')) emoji = '🧃';
+    if (n.includes('cerveza')) emoji = '🍺';
+    if (n.includes('limon') || n.includes('limón')) emoji = '🍋';
+    if (n.includes('naranja')) emoji = '🍊';
+    if (n.includes('sprite') || n.includes('7up')) emoji = '🫧';
+    bebidas.push({ nombre, precio, stock, emoji });
+    document.getElementById('nuevaBebidaNombre').value = '';
+    document.getElementById('nuevaBebidaPrecio').value = '';
+    document.getElementById('nuevaBebidaStock').value = '';
+    guardarDatos(); cargarBebidasGrid(); renderListaBebidasAdmin();
+}
+
+function renderListaBebidasAdmin() {
+    let lista = document.getElementById('listaBebidasAdmin');
+    if (!lista) return;
+    if (bebidas.length === 0) { lista.innerHTML = '<p style="color:#555;font-size:12px;text-align:center;padding:8px;">Sin bebidas registradas</p>'; return; }
+    lista.innerHTML = bebidas.map((b, i) => `
+        <div style="background:#222;border-radius:8px;padding:9px 12px;margin-bottom:6px;display:grid;grid-template-columns:auto 1fr 80px 80px 80px 40px;gap:8px;align-items:center;font-size:13px;">
+            <span style="font-size:18px;">${b.emoji}</span>
+            <div style="font-weight:bold;">${b.nombre}</div>
+            <div>$${b.precio.toLocaleString('es-CO')}</div>
+            <div style="text-align:center;">
+                <input type="number" value="${b.stock}" min="0"
+                    onchange="actualizarStockBebida(${i}, this.value)"
+                    style="width:60px;padding:4px;background:#333;border:1px solid #444;border-radius:6px;color:white;text-align:center;font-size:12px;">
+            </div>
+            <div style="color:#888;font-size:11px;">uds</div>
+            <button class="red" onclick="eliminarBebida(${i})" style="padding:5px 8px;font-size:11px;">✕</button>
+        </div>`).join('');
+}
+
+function actualizarStockBebida(i, val) {
+    bebidas[i].stock = Math.max(0, parseInt(val) || 0);
+    guardarDatos(); cargarBebidasGrid();
+}
+
+function eliminarBebida(i) {
+    if (!confirm('¿Eliminar ' + bebidas[i].nombre + '?')) return;
+    bebidas.splice(i, 1);
+    guardarDatos(); cargarBebidasGrid(); renderListaBebidasAdmin();
+}
+
+/***********************************************************
+ *  ADMIN INVENTARIO
+ ***********************************************************/
+function guardarPrecioPapas() {
+    let val = parseInt(document.getElementById('inputPrecioPapas').value) || 0;
+    if (val <= 0) { alert('Ingresa un precio válido'); return; }
+    precioPapas = val;
+    document.getElementById('precioPapasLabel').textContent = 'Actual: $' + precioPapas.toLocaleString('es-CO');
+    document.getElementById('inputPrecioPapas').value = '';
+    guardarDatos(); renderPapasCard();
+    alert('✅ Precio actualizado: $' + precioPapas.toLocaleString('es-CO'));
+}
+
+function loginInventario() {
+    let u=prompt('Usuario'),c=prompt('Clave');
+    if(u==='gato'&&c==='alas2025'){document.getElementById('inventarioPanel').style.display='block';renderListaProductosAdmin();renderListaBebidasAdmin();document.getElementById('precioPapasLabel').textContent='Actual: $'+precioPapas.toLocaleString('es-CO');}
+    else alert('Acceso denegado');
+}
+function salirInventario(){document.getElementById('inventarioPanel').style.display='none';}
+
+function renderListaProductosAdmin() {
+    let lista = document.getElementById('listaProductosAdmin');
+    if (!lista) return;
+    lista.innerHTML = productos.map((p,i) => `
+        <div style="background:#222;border-radius:8px;padding:10px 14px;margin-bottom:6px;display:grid;grid-template-columns:2fr 1fr 1fr 60px;gap:8px;align-items:center;font-size:13px;">
+            <div>${p.emoji||'🍗'} ${p.nombre}</div>
+            <div>$${p.precio.toLocaleString('es-CO')}</div>
+            <div>${p.piezas} piezas</div>
+            <button class="red" onclick="eliminarProducto(${i})" style="padding:5px 8px;font-size:11px;">✕</button>
+        </div>`).join('');
+}
+
+function crearProducto() {
+    let nombre=document.getElementById('nuevoNombre').value.trim();
+    let precio=Number(document.getElementById('nuevoPrecio').value);
+    let piezas=Number(document.getElementById('nuevoStock').value);
+    if(!nombre||precio<=0||piezas<=0){alert('Completa todos los campos correctamente (precio y piezas deben ser > 0)');return;}
+    productos.push({nombre,precio,piezas,emoji:'🍗'});
+    document.getElementById('nuevoNombre').value='';document.getElementById('nuevoPrecio').value='';document.getElementById('nuevoStock').value='';
+    guardarDatos(); cargarCombos(); renderListaProductosAdmin();
+}
+function eliminarProducto(i) {
+    if(!confirm('¿Eliminar este combo?'))return;
+    productos.splice(i,1);
+    guardarDatos(); cargarCombos(); renderListaProductosAdmin();
+}
+function reiniciarTodo() {
+    if(!confirm('⚠️ Esto borrará TODOS los datos. ¿Confirmar?'))return;
+    if(prompt('Escribe REINICIAR para confirmar:')==='REINICIAR'){
+        localStorage.removeItem('gatoAlasPosV2'); location.reload();
+    } else alert('Cancelado.');
+}
+
+/***********************************************************
+ *  GASTOS
+ ***********************************************************/
+function loginGastos(){let u=prompt('Usuario'),c=prompt('Clave');if(u==='gato'&&c==='alas2025'){document.getElementById('gastosPanel').style.display='block';cargarListaGastos();}else alert('Acceso denegado');}
+function salirGastos(){document.getElementById('gastosPanel').style.display='none';}
+function agregarGasto(){
+    let tipo=document.getElementById('tipoGasto').value,nombre=document.getElementById('nombreGasto').value,monto=Number(document.getElementById('montoGasto').value),fecha=document.getElementById('fechaGasto').value;
+    if(!nombre||monto<=0||!fecha){alert('Completa todos los campos');return;}
+    let g={tipo,nombre,monto,fecha,timestamp:Date.now()};
+    gastos.push({...g});historialGastos.push({...g});gastosDesdeUltimoCierre+=monto;
+    ['nombreGasto','montoGasto','fechaGasto'].forEach(id=>{document.getElementById(id).value='';});
+    cargarListaGastos();actualizarInfoCierre();guardarDatos();alert('Gasto registrado');
+}
+function cargarListaGastos(){
+    let apertura=ultimaAperturaCaja.getTime();
+    let ga=historialGastos.filter(g=>g.timestamp&&g.timestamp>=apertura);
+    let html=ga.length===0?'<p style="color:#aaa;text-align:center;padding:10px;">Sin gastos en este período</p>':ga.map(g=>{
+        let idx=gastos.findIndex(x=>x.timestamp===g.timestamp);
+        return `<div class="gasto-item"><div><strong>${g.tipo}:</strong> ${g.nombre}</div><div>$${g.monto.toLocaleString('es-CO')}</div><div>${g.fecha}</div><button class="red" onclick="eliminarGasto(${idx})">✕</button></div>`;
+    }).join('');
+    document.getElementById('listaGastos').innerHTML=html;
+}
+function eliminarGasto(i){
+    if(!confirm('¿Eliminar este gasto?'))return;
+    let g=gastos[i];gastosDesdeUltimoCierre-=g.monto;
+    let idx=historialGastos.findIndex(h=>h.timestamp===g.timestamp);if(idx!==-1)historialGastos.splice(idx,1);
+    gastos.splice(i,1);cargarListaGastos();actualizarInfoCierre();guardarDatos();
+}
+
+/***********************************************************
+ *  CIERRE DE CAJA
+ ***********************************************************/
+function actualizarInfoCierre(){
+    let el=id=>document.getElementById(id);
+    if(el('ultimaApertura'))el('ultimaApertura').innerText=ultimaAperturaCaja.toLocaleString();
+    if(el('pedidosContados'))el('pedidosContados').innerText=pedidosEntregados;
+    if(el('ventasAcumuladas'))el('ventasAcumuladas').innerText=ventasDesdeUltimoCierre.toLocaleString('es-CO');
+    if(el('gastosAcumulados'))el('gastosAcumulados').innerText=gastosDesdeUltimoCierre.toLocaleString('es-CO');
+    if(el('diferenciaCaja'))el('diferenciaCaja').innerText=(ventasDesdeUltimoCierre-gastosDesdeUltimoCierre).toLocaleString('es-CO');
+    if(ventasDesdeUltimoCierre>0||gastosDesdeUltimoCierre>0){let ci=el('cierreInfo');if(ci)ci.style.display='block';}
+}
+function abrirCierreCaja(){
+    if(ventasDesdeUltimoCierre===0&&gastosDesdeUltimoCierre===0){alert('No hay movimientos desde la última apertura.');return;}
+    if(!confirm(`¿Cerrar caja?\n\nPedidos entregados: ${pedidosEntregados}\nVentas: $${ventasDesdeUltimoCierre.toLocaleString('es-CO')}\nGastos: $${gastosDesdeUltimoCierre.toLocaleString('es-CO')}\nGanancia: $${(ventasDesdeUltimoCierre-gastosDesdeUltimoCierre).toLocaleString('es-CO')}`))return;
+    let cierre={fecha:new Date().toISOString(),apertura:ultimaAperturaCaja.toISOString(),ventasAcumuladas:ventasDesdeUltimoCierre,gastosAcumulados:gastosDesdeUltimoCierre,diferencia:ventasDesdeUltimoCierre-gastosDesdeUltimoCierre,pedidosEntregados};
+    cierresCaja.push(cierre);exportarCierreCajaPDF(cierre);
+    ventasDesdeUltimoCierre=0;gastosDesdeUltimoCierre=0;ventas=0;pedidosEntregados=0;
+    stockPiezas=0;stockMaxDia=0;piezasConsumidasHoy=0; // reset stock del día
+    historialGastos.forEach(g=>{if(!g._anteCierre)g._anteCierre=true;});
+    gastos=[];ultimaAperturaCaja=new Date();
+    document.getElementById('ventasDia').innerText=0;
+    cargarListaGastos();actualizarInfoCierre();actualizarStockUI();guardarDatos();
+    alert('✅ Caja cerrada. Stock de piezas reiniciado para el nuevo día.');
+}
+function exportarCierreCajaPDF(c){
+    let logoSrc=localStorage.getItem("gatoLogoB64")||"";
+    let ganancia=c.ventasAcumuladas-c.gastosAcumulados;
+    let html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cierre de Caja</title>'
+        +'<style>body{font-family:Arial;padding:30px;background:#f5f5f5;}'
+        +'.box{background:white;padding:28px;border-radius:10px;max-width:580px;margin:0 auto;box-shadow:0 2px 8px rgba(0,0,0,.1);}'
+        +'h1{color:#ff4500;text-align:center;}h2{text-align:center;color:#555;font-size:14px;margin-bottom:20px;}'
+        +'.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee;font-size:15px;}'
+        +'.total-row{display:flex;justify-content:space-between;padding:14px 0;font-size:20px;font-weight:bold;color:#ff4500;}'
+        +'footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px;}'
+        +'@media print{body{margin:0;}}</style></head><body>'
+        +'<div class="box">'
+        +(logoSrc?'<img src="'+logoSrc+'" style="width:70px;border-radius:50%;display:block;margin:0 auto 10px;">':'<div style="text-align:center;font-size:40px;">🐱</div>')
+        +'<h1>LAS ALAS DEL GATO</h1>'
+        +'<h2>Cierre de Caja — '+new Date(c.fecha).toLocaleString('es-CO')+'</h2>'
+        +'<div class="row"><span>📦 Pedidos entregados</span><strong>'+c.pedidosEntregados+'</strong></div>'
+        +'<div class="row"><span>💰 Ventas acumuladas</span><strong style="color:#15803d;">$'+c.ventasAcumuladas.toLocaleString('es-CO')+'</strong></div>'
+        +'<div class="row"><span>💸 Gastos acumulados</span><strong style="color:#b91c1c;">$'+c.gastosAcumulados.toLocaleString('es-CO')+'</strong></div>'
+        +'<div class="total-row"><span>🏆 Ganancia neta</span><span>$'+ganancia.toLocaleString('es-CO')+'</span></div>'
+        +'<footer>Generado: '+new Date().toLocaleString('es-CO')+' — MULTIMANT SAS</footer>'
+        +'</div>
+</body></html>';
+    let w=window.open('');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
+}
+
+/***********************************************************
+ *  REPORTES
+ ***********************************************************/
+function abrirReportes(){document.getElementById('reportesModal').style.display='block';}
+function cerrarReportes(){document.getElementById('reportesModal').style.display='none';}
+window.onclick=function(e){let m=document.getElementById('reportesModal');if(e.target===m)m.style.display='none';let ms=document.getElementById('modalStock');if(e.target===ms)ms.style.display='none';};
+
+function verReporteMensual(){
+    let mes=document.getElementById('mesReporte').value,ano=document.getElementById('anoReporte').value;
+    if(!mes||!ano){alert('Selecciona mes y año');return;}
+    let vm=historialVentas.filter(v=>{let f=new Date(v.fecha);return String(f.getMonth()+1).padStart(2,"0")===mes&&String(f.getFullYear())===ano;});
+    let totalMes=vm.reduce((s,v)=>s+v.total,0);
+    let gm=historialGastos.filter(g=>g.fecha&&g.fecha.startsWith(ano+'-'+mes));
+    let totalGm=gm.reduce((s,g)=>s+g.monto,0);
+    let pm={};vm.forEach(v=>{if(v.detalles)v.detalles.forEach(d=>{if(!pm[d.producto])pm[d.producto]={cantidad:0,total:0};pm[d.producto].cantidad+=d.cantidad;pm[d.producto].total+=d.subtotal;});});
+    let filas=Object.entries(pm).map(([n,d])=>`<tr><td>${n}</td><td style="text-align:center;">${d.cantidad}</td><td style="text-align:right;">$${d.total.toLocaleString('es-CO')}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;color:#aaa;">Sin ventas</td></tr>';
+    let meses=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    let piezasTotal=vm.reduce((s,v)=>s+(v.piezas||0),0);
+    document.getElementById('reporteMensualDiv').innerHTML=`<div class="reporte-tabla"><p style="margin-bottom:10px;"><b>${meses[parseInt(mes)]} ${ano}</b> — Ventas: <b style="color:#ff4500;">$${totalMes.toLocaleString('es-CO')}</b> | Gastos: <b style="color:#f87171;">$${totalGm.toLocaleString('es-CO')}</b> | Ganancia: <b style="color:#4ade80;">$${(totalMes-totalGm).toLocaleString('es-CO')}</b></p><p style="font-size:12px;color:#aaa;margin-bottom:10px;">🍗 Total piezas vendidas: ${piezasTotal}</p><table style="margin-top:10px;"><tr><th>Combo</th><th>Cantidad</th><th>Total</th></tr>${filas}</table></div>`;
+}
+
+function exportarReporteMensualPDF(){
+    let mes=document.getElementById('mesReporte').value,ano=document.getElementById('anoReporte').value;
+    if(!mes||!ano){alert('Selecciona mes y año');return;}
+    let vm=historialVentas.filter(v=>{let f=new Date(v.fecha);return String(f.getMonth()+1).padStart(2,"0")===mes&&String(f.getFullYear())===ano;});
+    let totalMes=vm.reduce((s,v)=>s+v.total,0),gm=historialGastos.filter(g=>g.fecha&&g.fecha.startsWith(ano+'-'+mes)),totalGm=gm.reduce((s,g)=>s+g.monto,0);
+    let pm={};vm.forEach(v=>{if(v.detalles)v.detalles.forEach(d=>{if(!pm[d.producto])pm[d.producto]={cantidad:0,total:0};pm[d.producto].cantidad+=d.cantidad;pm[d.producto].total+=d.subtotal;});});
+    let filas=Object.entries(pm).map(([n,d])=>`<tr><td>${n}</td><td style="text-align:center;">${d.cantidad}</td><td style="text-align:right;">$${d.total.toLocaleString('es-CO')}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;">Sin ventas</td></tr>';
+    let meses=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    let piezasTotal=vm.reduce((s,v)=>s+(v.piezas||0),0);
+    let logoSrc=localStorage.getItem("gatoLogoB64")||"";
+    let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reporte Mensual</title><style>body{font-family:Arial;padding:30px;}table{width:100%;border-collapse:collapse;}th{background:#ff4500;color:white;padding:10px;}td{padding:10px;border-bottom:1px solid #ddd;}.tb{background:#fff3e0;padding:15px;border-radius:8px;margin:16px 0;}h1{color:#ff4500;}</style></head><body>${logoSrc?`<img src="${logoSrc}" style="width:80px;border-radius:50%;display:block;margin:0 auto 10px;">`:''}<h1 style="text-align:center;">🐱 LAS ALAS DEL GATO</h1><h2 style="text-align:center;">Reporte Mensual — ${meses[parseInt(mes)]} ${ano}</h2><div class="tb"><p><b>Ventas:</b> $${totalMes.toLocaleString('es-CO')}</p><p><b>Gastos:</b> $${totalGm.toLocaleString('es-CO')}</p><p style="color:#ff4500;font-size:18px;"><b>Ganancia neta:</b> $${(totalMes-totalGm).toLocaleString('es-CO')}</p><p style="color:#888;font-size:13px;">🍗 Piezas vendidas: ${piezasTotal}</p></div><h3>Ventas por Combo</h3><table><tr><th>Combo</th><th>Cantidad</th><th>Total</th></tr>${filas}</table><p style="margin-top:20px;font-size:11px;color:#999;">Generado: ${new Date().toLocaleString()} — MULTIMANT SAS</p>
+
+</body></html>`;
+    let w=window.open('');w.document.write(html);w.document.close();setTimeout(()=>{try{w.print();}catch(e){}},700);
+}
+
+function cerrarSesion(){if(confirm("¿Cerrar sesión?")){sessionStorage.removeItem("autenticadoGato");location.reload();}}
+
+/***********************************************************
+ *  INICIALIZAR
+ ***********************************************************/
+(async function(){
+    await verificarIntegridad();
+    await verificarManipulacionFecha();
+    await verificarLicencia();
+    cargarDatos();
+    await mostrarDiasLicencia();
+    reloj();
+    cargarCombos();
+    cargarBebidasGrid();
+    renderPedidos();
+    actualizarBadge();
+    // Logo
+    let logo = localStorage.getItem("gatoLogoB64");
+    if (logo) { document.getElementById("logoImg").src=logo; document.getElementById("ticketLogo").src=logo; }
+})();
+
+function exportarFacturaPedido(){
+    cerrarModalSalsas();
+    if(!pedidoActivoId){alert('Selecciona un pedido primero');return;}
+    let pedido=pedidos.find(p=>p.id===pedidoActivoId);
+    if(!pedido){alert('Pedido no encontrado');return;}
+    let piezasTotal=pedido.items.reduce((s,it)=>s+it.piezas*it.cantidad,0);
+    let filas=pedido.items.map(it=>`<tr><td style="padding:12px 18px;border-bottom:1px solid #f0ece6;font-weight:600;">${it.nombre}<br><small style="color:#888;">${it.piezas} piezas c/u</small></td><td style="padding:12px;text-align:center;border-bottom:1px solid #f0ece6;">${it.cantidad}</td><td style="padding:12px 18px;text-align:right;border-bottom:1px solid #f0ece6;font-weight:700;">$${(it.precio*it.cantidad).toLocaleString('es-CO')}</td></tr>`).join('');
+    let logoSrc=localStorage.getItem("gatoLogoB64")||"";
+    let metodos={efectivo:'💵 Efectivo',transferencia:'📲 Transferencia',nequi:'🟣 Nequi',daviplata:'🔴 Daviplata'};
+    let html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Factura ${pedido.id}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Lato',sans-serif;background:#f5f5f5;}
+    .factura{max-width:580px;margin:0 auto;background:white;position:relative;overflow:hidden;}
+    .cab{background:#111;padding:24px 36px;display:flex;align-items:center;gap:16px;}
+    .cab-logo{width:65px;height:65px;border-radius:50%;border:2px solid #ff4500;object-fit:cover;}
+    .cab-titulo h1{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;color:#fff;}.cab-titulo h1 span{color:#ff4500;}
+    .cab-titulo p{color:#888;font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:3px;}
+    .banda{background:#ff4500;padding:10px 36px;display:flex;justify-content:space-between;}
+    .banda span{color:#fff;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:2px solid #f0ece6;}
+    .meta-item{padding:14px 20px;border-right:1px solid #f0ece6;}.meta-item:last-child{border-right:none;}
+    .meta-item .lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#aaa;margin-bottom:4px;}
+    .meta-item .val{font-size:14px;font-weight:700;color:#2c1a0e;}
+    .tabla-header{display:grid;grid-template-columns:1fr 80px 110px;padding:10px 18px;background:#f7f3ee;border-top:1px solid #f0ece6;border-bottom:1px solid #f0ece6;}
+    .tabla-header span{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#888;font-weight:700;}
+    .tabla-header span:nth-child(2){text-align:center;}.tabla-header span:nth-child(3){text-align:right;}
+    table.items{width:100%;border-collapse:collapse;}
+    .totales{border-top:2px solid #f0ece6;padding:18px 20px;}
+    .totales .gran-total{display:flex;justify-content:space-between;align-items:center;border-top:2px solid #2c1a0e;margin-top:10px;padding-top:12px;}
+    .totales .gran-total .etq{font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#2c1a0e;text-transform:uppercase;}
+    .totales .gran-total .monto{font-family:'Playfair Display',serif;font-size:32px;font-weight:900;color:#ff4500;}
+    .pie{background:#111;padding:18px 36px;text-align:center;}
+    .pie p{color:#555;font-size:11px;letter-spacing:1px;}.pie .agradece{color:#ff4500;font-family:'Playfair Display',serif;font-size:15px;margin-bottom:6px;}
+    .borde-lateral{position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(to bottom,#ff4500,#ff0000,#ff4500);}
+    @media print{body{margin:0;}.factura{max-width:100%;}}</style></head>
+    <body><div class="factura"><div class="borde-lateral"></div>
+    <div class="cab">${logoSrc?`<img class="cab-logo" src="${logoSrc}">`:'<div class="cab-logo" style="background:#ff4500;display:flex;align-items:center;justify-content:center;font-size:28px;min-width:65px;">🐱</div>'}
+    <div class="cab-titulo"><h1>LAS ALAS <span>DEL GATO</span></h1><p>Domicilios • Sistema POS</p></div></div>
+    <div class="banda"><span>🛵 Domicilio</span><span>${pedido.id}</span></div>
+    <div class="meta">
+        <div class="meta-item"><div class="lbl">Cliente</div><div class="val">${pedido.cliente}</div></div>
+        <div class="meta-item"><div class="lbl">Teléfono</div><div class="val">${pedido.telefono||'—'}</div></div>
+        <div class="meta-item" style="grid-column:1/-1;border-right:none;"><div class="lbl">Dirección</div><div class="val">${pedido.direccion||'—'}</div></div>
+        <div class="meta-item"><div class="lbl">Pago</div><div class="val">${metodos[pedido.metodoPago]||pedido.metodoPago}</div></div>
+        <div class="meta-item"><div class="lbl">Fecha</div><div class="val" style="font-size:12px;">${new Date().toLocaleString('es-CO')}</div></div>
+    </div>
+    <div><div class="tabla-header"><span>Combo</span><span>Cant.</span><span>Subtotal</span></div>
+    <table class="items"><tbody>${filas}</tbody></table></div>
+    <div class="totales">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#777;margin-bottom:6px;"><span>🍗 Total piezas</span><span>${piezasTotal} piezas</span></div>
+        ${pedido.notas?`<div style="font-size:12px;color:#888;font-style:italic;margin-bottom:6px;">📝 ${pedido.notas}</div>`:''}
+        <div class="gran-total"><span class="etq">Total a Pagar</span><span class="monto">$${pedido.total.toLocaleString('es-CO')}</span></div>
+    </div>
+    <div class="pie"><p class="agradece">¡Lo unico malo es que se acaban! </p><p>Este documento es una pre-cuenta, no constituye factura fiscal.</p><p style="margin-top:6px;color:#333;">Powered by MULTIMANT SAS</p></div>
+    </div>
+
+
+
+</body></html>`;
+    let w=window.open('');w.document.write(html);w.document.close();setTimeout(()=>{try{w.print();}catch(e){}},700);
+}
+
+</script>
+
+<!-- ══ MODAL SALSAS ══════════════════════════════════════ -->
+<div class="modal-salsas" id="modalSalsas" onclick="if(event.target===this)cerrarModalSalsas()">
+    <div class="modal-salsas-inner">
+        <h2>🫙 Elige tus salsas</h2>
+        <p class="ms-sub">Puedes seleccionar <strong style="color:#ff4500;">hasta 3 sabores</strong> diferentes</p>
+        <div class="ms-combo-preview">
+            <div>
+                <div style="font-size:10px;color:#888;margin-bottom:2px;letter-spacing:1px;">COMBO</div>
+                <div class="ms-nombre" id="ms_comboNombre">—</div>
+            </div>
+            <div class="ms-precio" id="ms_comboPrec">$0</div>
+        </div>
+        <div class="salsas-hint">Salsas elegidas: <span id="ms_contSalsas">0</span> / 3</div>
+        <div class="salsas-grid" id="salsasGrid"></div>
+        <div class="salsa-requerida-msg" id="salsaRequeridaMsg">⚠️ Selecciona al menos 1 salsa</div>
+        <button class="btn-confirmar-combo" onclick="confirmarComboConSalsas()">✅ Agregar al pedido</button>
+        <button class="btn-cancelar-combo" onclick="cerrarModalSalsas()">Cancelar</button>
+    </div>
+</div>
+
+
+
+
+
+<!-- ══ TAB NAVIGATION (MOBILE) ══════════════════════════════════ -->
+<div id="tabNav" style="display:none;">
+    <button onclick="switchTab('pedidos')" id="tnPedidos" class="tab-nav-active">
+        <span class="tab-icon">📦</span>Pedidos
+    </button>
+    <button onclick="switchTab('nuevo')" id="tnNuevo">
+        <span class="tab-icon">➕</span>Nuevo
+    </button>
+    <button onclick="switchTab('ticket')" id="tnTicket">
+        <span class="tab-icon">🧾</span>Ticket
+    </button>
+    <button onclick="switchTab('admin')" id="tnAdmin">
+        <span class="tab-icon">⚙️</span>Admin
+    </button>
+</div>
+
+<script>
+function isMobile() { return window.innerWidth <= 900; }
+
+const TAB_SECTIONS = {
+    pedidos: ['secPedidos'],
+    nuevo:   ['secNuevo'],
+    ticket:  ['secTicket'],
+    admin:   ['secAdmin','secGastos','secCierre','secReportes']
+};
+
+function switchTab(tab) {
+    if (!isMobile()) return;
+    Object.values(TAB_SECTIONS).flat().forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    (TAB_SECTIONS[tab] || []).forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    });
+    ['tnPedidos','tnNuevo','tnTicket','tnAdmin'].forEach(function(id) {
+        var b = document.getElementById(id);
+        if (b) b.classList.remove('tab-nav-active');
+    });
+    var map = {pedidos:'tnPedidos',nuevo:'tnNuevo',ticket:'tnTicket',admin:'tnAdmin'};
+    var btn = document.getElementById(map[tab]);
+    if (btn) btn.classList.add('tab-nav-active');
+}
+
+function setupMobileLayout() {
+    var nav = document.getElementById('tabNav');
+    if (!isMobile()) {
+        if (nav) nav.style.display = 'none';
+        ['secPedidos','secNuevo','secTicket','secAdmin','secGastos','secCierre','secReportes'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = '';
+        });
+        return;
+    }
+    if (nav) nav.style.display = 'flex';
+    switchTab('pedidos');
+}
+
+var _origSelPedido = seleccionarPedido;
+window.seleccionarPedido = function(id) {
+    _origSelPedido(id);
+    if (isMobile()) switchTab('ticket');
+};
+
+var _origCrearPedido = crearNuevoPedido;
+window.crearNuevoPedido = function() {
+    _origCrearPedido();
+    if (isMobile()) switchTab('ticket');
+};
+
+window.addEventListener('resize', setupMobileLayout);
+
+var _origEntrar = entrarSistema;
+window.entrarSistema = function() {
+    _origEntrar();
+    setTimeout(setupMobileLayout, 100);
+};
+
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        if (sessionStorage.getItem('autenticadoGato') === 'si') {
+            setupMobileLayout();
+        }
+    }, 300);
+});
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js')
+            .then(function(reg) { console.log('SW:', reg.scope); })
+            .catch(function(err) { console.log('SW error:', err); });
+    });
+}
+</script>
+
+</body>
+</html>

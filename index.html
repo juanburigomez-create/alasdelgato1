@@ -157,10 +157,13 @@
         @media (max-width: 900px) {
             body { padding: 8px; padding-bottom: 70px; }
             
-            /* Layout: stack vertically, tabs control visibility */
-            .dashboard { display: block !important; }
-            .panel, .ticketPanel { display: none !important; }
-            .panel.tab-active, .ticketPanel.tab-active { display: block !important; }
+            /* Layout: stack vertically */
+            .dashboard { display: flex !important; flex-direction: column !important; }
+            .panel { display: block !important; }
+            .ticketPanel { position: static !important; display: block !important; }
+            /* Tab sections: hide by default, show active */
+            .tab-section { display: none !important; }
+            .tab-section.tab-active { display: block !important; }
             
             /* Header: single column */
             .header { grid-template-columns: 1fr !important; gap: 10px; }
@@ -1559,8 +1562,7 @@ function exportarCierreCajaPDF(c){
         +'<div class="row"><span>💸 Gastos acumulados</span><strong style="color:#b91c1c;">$'+c.gastosAcumulados.toLocaleString('es-CO')+'</strong></div>'
         +'<div class="total-row"><span>🏆 Ganancia neta</span><span>$'+ganancia.toLocaleString('es-CO')+'</span></div>'
         +'<footer>Generado: '+new Date().toLocaleString('es-CO')+' — MULTIMANT SAS</footer>'
-        +'</div>
-</body></html>';
+        +'</div></body></html>';
     let w=window.open('');w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
 }
 
@@ -1727,20 +1729,23 @@ function exportarFacturaPedido(){
 </div>
 
 <script>
-function isMobile() { return window.innerWidth <= 900; }
-
-const TAB_SECTIONS = {
+// ── MOBILE NAVIGATION ────────────────────────────────────────
+var TAB_SECTIONS = {
     pedidos: ['secPedidos'],
     nuevo:   ['secNuevo'],
     ticket:  ['secTicket'],
     admin:   ['secAdmin','secGastos','secCierre','secReportes']
 };
 
+function isMobile() { return window.innerWidth <= 900; }
+
 function switchTab(tab) {
     if (!isMobile()) return;
-    Object.values(TAB_SECTIONS).flat().forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = 'none';
+    Object.keys(TAB_SECTIONS).forEach(function(key) {
+        TAB_SECTIONS[key].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
     });
     (TAB_SECTIONS[tab] || []).forEach(function(id) {
         var el = document.getElementById(id);
@@ -1759,9 +1764,11 @@ function setupMobileLayout() {
     var nav = document.getElementById('tabNav');
     if (!isMobile()) {
         if (nav) nav.style.display = 'none';
-        ['secPedidos','secNuevo','secTicket','secAdmin','secGastos','secCierre','secReportes'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.style.display = '';
+        Object.keys(TAB_SECTIONS).forEach(function(key) {
+            TAB_SECTIONS[key].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.style.display = '';
+            });
         });
         return;
     }
@@ -1769,41 +1776,41 @@ function setupMobileLayout() {
     switchTab('pedidos');
 }
 
-var _origSelPedido = seleccionarPedido;
-window.seleccionarPedido = function(id) {
-    _origSelPedido(id);
-    if (isMobile()) switchTab('ticket');
-};
-
-var _origCrearPedido = crearNuevoPedido;
-window.crearNuevoPedido = function() {
-    _origCrearPedido();
-    if (isMobile()) switchTab('ticket');
-};
+// Patch seleccionarPedido and crearNuevoPedido AFTER they are defined
+window.addEventListener('load', function() {
+    // Wrap seleccionarPedido
+    if (typeof seleccionarPedido === 'function') {
+        var origSel = seleccionarPedido;
+        window.seleccionarPedido = function(id) { origSel(id); if(isMobile()) switchTab('ticket'); };
+    }
+    // Wrap crearNuevoPedido
+    if (typeof crearNuevoPedido === 'function') {
+        var origCrear = crearNuevoPedido;
+        window.crearNuevoPedido = function() { origCrear(); if(isMobile()) switchTab('ticket'); };
+    }
+    // Setup layout if already logged in
+    if (sessionStorage.getItem('autenticadoGato') === 'si') {
+        setupMobileLayout();
+    }
+    // Watch for login: poll for sistema becoming visible
+    var loginWatcher = setInterval(function() {
+        var sistema = document.getElementById('sistema');
+        if (sistema && sistema.style.display !== 'none' && sistema.style.display !== '') {
+            setupMobileLayout();
+            clearInterval(loginWatcher);
+        }
+    }, 200);
+});
 
 window.addEventListener('resize', setupMobileLayout);
-
-var _origEntrar = entrarSistema;
-window.entrarSistema = function() {
-    _origEntrar();
-    setTimeout(setupMobileLayout, 100);
-};
-
-window.addEventListener('load', function() {
-    setTimeout(function() {
-        if (sessionStorage.getItem('autenticadoGato') === 'si') {
-            setupMobileLayout();
-        }
-    }, 300);
-});
 </script>
 
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
         navigator.serviceWorker.register('sw.js')
-            .then(function(reg) { console.log('SW:', reg.scope); })
-            .catch(function(err) { console.log('SW error:', err); });
+            .then(function(r){ console.log('SW:', r.scope); })
+            .catch(function(e){ console.log('SW skip (no GitHub Pages)'); });
     });
 }
 </script>
